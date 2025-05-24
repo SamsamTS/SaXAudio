@@ -1,0 +1,40 @@
+EXPORTS
+	Create
+	Release
+	
+	PauseAll
+	ResumeAll
+
+	StopEngine
+	StartEngine
+	
+	BankAddOgg
+	BankRemove
+	
+	CreateVoice
+	VoiceExist
+	
+	Start
+	StartAtSample
+	StartAtTime
+	Stop
+	
+	Pause
+	Resume
+	GetPauseStack
+	
+	SetVolume
+	SetSpeed
+	SetPanning
+	SetLooping
+	SetLoopPoints
+	
+	GetVolume
+	GetSpeed
+	GetPanning
+	GetLooping
+	
+	GetPositionSample
+	GetPositionTime
+	
+	OnVoiceFinished

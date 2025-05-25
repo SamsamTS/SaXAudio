@@ -4,6 +4,7 @@ EXPORTS
 	
 	PauseAll
 	ResumeAll
+	Protect
 
 	StopEngine
 	StartEngine

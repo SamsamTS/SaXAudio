@@ -22,18 +22,17 @@
 
 #pragma once
 
-//#define WIN32_LEAN_AND_MEAN	// Exclude rarely-used stuff from Windows headers
-//#include <windows.h>
+//---------------------------------------------------------------------
+// Enables logging
+//---------------------------------------------------------------------
+#define LOGGING
+
+// Include minimal required stuff from windows
 #ifdef _M_X64
 #define _AMD64_
 #elif defined _M_IX86
 #define _X86_
 #endif
-
-//---------------------------------------------------------------------
-// Enables logging
-//---------------------------------------------------------------------
-#define LOGGING
 
 #include <minwindef.h>
 #include <winnt.h>
@@ -61,6 +60,7 @@ namespace SaXAudio
 
     EXPORT void PauseAll(FLOAT fade = 0.1f);
     EXPORT void ResumeAll(FLOAT fade = 0.1f);
+    EXPORT void Protect(INT32 voiceID);
 
     EXPORT INT32 BankAddOgg(const BYTE* buffer, UINT32 length);
     EXPORT void BankRemove(INT32 bankID);
@@ -130,6 +130,8 @@ namespace SaXAudio
         atomic<UINT32> m_pauseStack = 0;
         UINT64 m_positionReset = 0;
         FLOAT m_volumeTarget = 0;
+
+        atomic<BOOL> m_tempFlush = false;
     public:
         AudioData* BankData = nullptr;
         IXAudio2SourceVoice* SourceVoice = nullptr;
@@ -144,9 +146,10 @@ namespace SaXAudio
 
         UINT32 LoopStart = 0;
         UINT32 LoopEnd = 0;
-        atomic<BOOL> Looping = false;
 
+        atomic<BOOL> Looping = false;
         atomic<BOOL> IsPlaying = false;
+        BOOL IsProtected = false;
 
         BOOL Start(UINT32 atSample = 0);
         BOOL Stop(FLOAT fade = 0.0f);
@@ -212,6 +215,7 @@ namespace SaXAudio
 
         static void PauseAll(FLOAT fade);
         static void ResumeAll(FLOAT fade);
+        static void Protect(INT32 voiceID);
 
         static INT32 Add(AudioData* data);
         static void Remove(INT32 bankID);

@@ -43,22 +43,442 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 namespace SaXAudio
 {
     // -------------------------------------------------------
+    // EXPORTS implementation
+    // -------------------------------------------------------
+
+    /// <summary>
+    /// Initialize XAudio and create a mastering voice
+    /// </summary>
+    /// <returns>Return true if successful</returns>
+    EXPORT BOOL Create()
+    {
+        return SaXAudio::Init();
+    }
+
+    /// <summary>
+    /// Release everything
+    /// </summary>
+    EXPORT void Release()
+    {
+        SaXAudio::Release();
+    }
+
+    /// <summary>
+    /// Resume playing all voices
+    /// </summary>
+    EXPORT void StartEngine()
+    {
+        SaXAudio::StartEngine();
+    }
+
+    /// <summary>
+    /// Pause all playing voices
+    /// </summary>
+    EXPORT void StopEngine()
+    {
+        SaXAudio::StopEngine();
+    }
+
+    /// <summary>
+    /// Pause all playing voices
+    /// </summary>
+    EXPORT void PauseAll(FLOAT fade)
+    {
+        SaXAudio::PauseAll(fade);
+    }
+    /// <summary>
+    /// Resume playing all voices
+    /// </summary>
+    EXPORT void ResumeAll(FLOAT fade)
+    {
+        SaXAudio::ResumeAll(fade);
+    }
+    /// <summary>
+    /// Protect a voice from PauseAll and ResumeAll
+    /// </summary>
+    /// <param name="voiceID"></param>
+    EXPORT void Protect(INT32 voiceID)
+    {
+        SaXAudio::Protect(voiceID);
+    }
+
+    /// <summary>
+    /// Add ogg audio data to the sound bank
+    /// The data will be decoded (async) and stored in memory
+    /// </summary>
+    /// <param name="buffer">The ogg data</param>
+    /// <param name="length">The length in bytes of the data</param>
+    /// <returns>unique bankID for that audio data</returns>
+    EXPORT INT32 BankAddOgg(const BYTE* buffer, UINT32 length)
+    {
+        AudioData* data = new AudioData;
+        INT32 bankID = SaXAudio::Add(data);
+        if (bankID >= 0)
+            SaXAudio::StartDecodeOgg(bankID, buffer, length);
+        return bankID;
+    }
+    /// <summary>
+    /// Remove and free the memory of the specified audio data
+    /// </summary>
+    /// <param name="bankID">The bankID of the data to remove</param>
+    EXPORT void BankRemove(INT32 bankID)
+    {
+        SaXAudio::Remove(bankID);
+    }
+
+    /// <summary>
+    /// Create a voice for playing the specified audio data
+    /// When the audio data finished playing, the voice will be deleted
+    /// </summary>
+    /// <param name="bankID">The bankID of the data to play</param>
+    /// <param name="paused">when false, the audio will start playing immediately</param>
+    /// <returns>unique voiceID</returns>
+    EXPORT INT32 CreateVoice(INT32 bankID, BOOL paused)
+    {
+        AudioVoice* voice = SaXAudio::CreateVoice(bankID);
+
+        if (!voice)
+            return -1;
+
+        if (!paused)
+            voice->Start();
+
+        return voice->VoiceID;
+    }
+
+    /// <summary>
+    /// Check if the specified voice exists
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns>true if the specified voice exists</returns>
+    EXPORT BOOL VoiceExist(INT32 voiceID)
+    {
+        return SaXAudio::GetVoice(voiceID) != nullptr;
+    }
+
+    /// <summary>
+    /// Starts playing the specified voice
+    /// Resets the pause stack
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns>true if successful or already playing</returns>
+    EXPORT BOOL Start(INT32 voiceID)
+    {
+        return StartAtSample(voiceID, 0);
+    }
+
+    /// <summary>
+    /// Starts playing the specified voice at a specific sample
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <param name="sample"></param>
+    /// <returns>true if successful</returns>
+    EXPORT BOOL StartAtSample(INT32 voiceID, UINT32 sample)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->Start(sample);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Starts playing the specified voice at a specific time in seconds
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <param name="time"></param>
+    /// <returns></returns>
+    EXPORT BOOL StartAtTime(INT32 voiceID, FLOAT time)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice && voice->BankData && time >= 0)
+        {
+            UINT32 sample = (UINT32)(time * voice->BankData->SampleRate);
+            return voice->Start(sample);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Stops playing the specified voice
+    /// This will also delete the voice
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <param name="time"></param>
+    /// <returns></returns>
+    EXPORT BOOL Stop(INT32 voiceID, FLOAT fade)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->Stop(fade);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Pause the voice and increase the pause stack.
+    /// About the pause stack: if a voice is paused more than once, it will take
+    /// the same amount of resumes to for it to start playing again.
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <param name="fade">The duration of the fade in seconds</param>
+    /// <returns>value of the pause stack</returns>
+    EXPORT UINT32 Pause(INT32 voiceID, FLOAT fade)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->Pause(fade);
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Reduce the pause stack and resume playing the voice if empty
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <param name="fade"></param>
+    /// <returns>value of the pause stack</returns>
+    EXPORT UINT32 Resume(INT32 voiceID, FLOAT fade)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->Resume(fade);
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Gets the pause stack value of the specified voice, 0 if empty
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns></returns>
+    EXPORT UINT32 GetPauseStack(INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->GetPauseStack();
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Sets the volume of the voice
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <param name="volume">[0, 1]</param>
+    EXPORT void SetVolume(INT32 voiceID, FLOAT volume, FLOAT fade)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            voice->SetVolume(volume, fade);
+        }
+    }
+
+    /// <summary>
+    /// Sets the playback speed of the voice
+    /// This will affect the pitch of the audio
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <param name="speed"></param>
+    EXPORT void SetSpeed(INT32 voiceID, FLOAT speed, FLOAT fade)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            voice->SetSpeed(speed, fade);
+        }
+    }
+
+    /// <summary>
+    /// Sets the panning of the voice
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <param name="panning">[-1, 1]</param>
+    EXPORT void SetPanning(INT32 voiceID, FLOAT panning, FLOAT fade)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            voice->SetPanning(panning, fade);
+        }
+    }
+
+    /// <summary>
+    /// Sets if the voice should loop
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <param name="looping"></param>
+    EXPORT void SetLooping(INT32 voiceID, BOOL looping)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            if (looping == voice->Looping)
+                return;
+
+            voice->Looping = looping;
+            if (looping)
+            {
+                // Start looping
+                if (voice->IsPlaying)
+                {
+                    voice->ChangeLoopPoints(voice->LoopStart, voice->LoopEnd);
+                }
+            }
+            else if (voice->IsPlaying && voice->SourceVoice)
+            {
+                // Stop looping
+                // TODO: this should be done by sending a new source buffer so the audio can continue playing past LoopEnd
+                voice->SourceVoice->ExitLoop();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sets the start and end looping points
+    /// By default the looping points are [0, last sample]
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <param name="start">in samples</param>
+    /// <param name="end">in samples</param>
+    EXPORT void SetLoopPoints(INT32 voiceID, UINT32 start, UINT32 end)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            voice->ChangeLoopPoints(start, end);
+        }
+    }
+
+    /// <summary>
+    /// Gets the volume of the specified voice
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns></returns>
+    EXPORT FLOAT GetVolume(INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->Volume;
+        }
+        return 1.0f;
+    }
+
+    /// <summary>
+    /// Gets the speed of the specified voice
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns></returns>
+    EXPORT FLOAT GetSpeed(INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->Speed;
+        }
+        return 1.0f;
+    }
+
+    /// <summary>
+    /// Gets the panning of the specified voice
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns></returns>
+    EXPORT FLOAT GetPanning(INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->Panning;
+        }
+        return 0.0f;
+    }
+
+    /// <summary>
+    /// Gets the specified voice is looping
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns></returns>
+    EXPORT BOOL GetLooping(INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->Looping;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Gets the position of the playing voice in samples
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns>sample position if playing or 0</returns>
+    EXPORT UINT32 GetPositionSample(INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->GetPosition();
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Gets the position of the playing voice in seconds
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns>position in seconds if playing or 0</returns>
+    EXPORT FLOAT GetPositionTime(INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice && voice->BankData)
+        {
+            return (FLOAT)voice->GetPosition() / voice->BankData->SampleRate;
+        }
+        return 0.0f;
+    }
+
+    /// <summary>
+    /// Sets a callback for when the voice finished playing
+    /// </summary>
+    /// <param name="callback"></param>
+    EXPORT void SetOnFinishedCallback(OnFinishedCallback callback)
+    {
+        Log(-1, -1, "[OnVoiceFinished]");
+        SaXAudio::OnFinishedCallback = callback;
+    }
+
+    // -------------------------------------------------------
     // AudioVoice class implementation
     // -------------------------------------------------------
 
     BOOL AudioVoice::Start(UINT32 atSample)
     {
-        if (!SourceVoice || !BankData || IsPlaying) return false;
+        if (!SourceVoice || !BankData) return false;
         Log(BankID, VoiceID, "[Start] at: " + to_string(atSample));
 
-        if (atSample > 0)
-            Buffer.PlayBegin = atSample;
+        if (IsPlaying)
+        {
+            m_tempFlush = true;
+            SourceVoice->Stop();
+            SourceVoice->FlushSourceBuffers();
+        }
+
+        Buffer.PlayBegin = atSample;
 
         // Set up the looping
-        if (Looping && LoopStart < (BankData->TotalSamples -1))
+        if (Looping && LoopStart < (BankData->TotalSamples - 1))
         {
             Buffer.LoopBegin = LoopStart;
-            Buffer.LoopLength = (LoopEnd > 0) ? LoopEnd - LoopStart : (BankData->TotalSamples -1) - LoopStart;
+            Buffer.LoopLength = (LoopEnd > 0) ? LoopEnd - LoopStart : (BankData->TotalSamples - 1) - LoopStart;
             Buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
             Log(BankID, VoiceID, "[Start] Loop: " + to_string(Buffer.LoopBegin) + " " + to_string(Buffer.LoopLength + Buffer.LoopBegin));
         }
@@ -66,6 +486,12 @@ namespace SaXAudio
         // Submitting the buffer
         if (FAILED(SourceVoice->SubmitSourceBuffer(&Buffer)))
         {
+            Log(BankID, VoiceID, "[Start] Failed to submit buffer");
+            if (IsPlaying)
+            {
+                m_tempFlush = false;
+                OnBufferEnd(nullptr);
+            }
             return false;
         }
 
@@ -245,6 +671,7 @@ namespace SaXAudio
         // TODO: make sure calculation is accurate at different speeds
         XAUDIO2_VOICE_STATE state;
         SourceVoice->GetState(&state);
+        m_tempFlush = true;
         SourceVoice->FlushSourceBuffers();
 
         // We might not have started at from the beginning of the buffer so we need add PlayBegin
@@ -695,8 +1122,12 @@ namespace SaXAudio
 
     void __stdcall AudioVoice::OnBufferEnd(void* pBufferContext)
     {
-        // We don't want to do anything when changing loop points
-        if (Looping) return;
+        // We don't want to do anything when temporary flushing the buffer
+        if (m_tempFlush)
+        {
+            m_tempFlush = false;
+            return;
+        }
         Log(BankID, VoiceID, "[OnBufferEnd] V" + to_string(VoiceID));
 
         IsPlaying = false;
@@ -807,7 +1238,8 @@ namespace SaXAudio
 
         for (auto& it : m_voices)
         {
-            it.second->Pause(fade);
+            if (!it.second->IsProtected)
+                it.second->Pause(fade);
         }
     }
 
@@ -819,7 +1251,21 @@ namespace SaXAudio
 
         for (auto& it : m_voices)
         {
-            it.second->Resume(fade);
+            if (!it.second->IsProtected)
+                it.second->Resume(fade);
+        }
+    }
+
+    void SaXAudio::Protect(INT32 voiceID)
+    {
+        if (!m_XAudio || !m_masteringVoice)
+            return;
+        AudioVoice* voice = GetVoice(voiceID);
+        if (voice)
+        {
+            voice->IsProtected = true;
+            if (voice->IsPlaying)
+                while (voice->Resume());
         }
     }
 
@@ -1047,7 +1493,6 @@ namespace SaXAudio
             if (voice->IsPlaying)
             {
                 Log(voice->BankID, voiceID, "[RemoveVoice] Stopping voice");
-                voice->Looping = false;
                 voice->SourceVoice->Stop();
                 voice->SourceVoice->FlushSourceBuffers();
                 // RemoveVoice will be called again by OnBufferEnd
@@ -1059,409 +1504,5 @@ namespace SaXAudio
                 Log(voice->BankID, voiceID, "[RemoveVoice] Deleted voice");
             }
         }
-    }
-
-    // -------------------------------------------------------
-    // EXPORTS implementation
-    // -------------------------------------------------------
-
-    /// <summary>
-    /// Initialize XAudio and create a mastering voice
-    /// </summary>
-    /// <returns>Return true if successful</returns>
-    EXPORT BOOL Create()
-    {
-        return SaXAudio::Init();
-    }
-
-    /// <summary>
-    /// Release everything
-    /// </summary>
-    EXPORT void Release()
-    {
-        SaXAudio::Release();
-    }
-
-    /// <summary>
-    /// Resume playing all voices
-    /// </summary>
-    EXPORT void StartEngine()
-    {
-        SaXAudio::StartEngine();
-    }
-
-    /// <summary>
-    /// Pause all playing voices
-    /// </summary>
-    EXPORT void StopEngine()
-    {
-        SaXAudio::StopEngine();
-    }
-
-    /// <summary>
-    /// Pause all playing voices
-    /// </summary>
-    EXPORT void PauseAll(FLOAT fade)
-    {
-        SaXAudio::PauseAll(fade);
-    }
-    /// <summary>
-    /// Resume playing all voices
-    /// </summary>
-    EXPORT void ResumeAll(FLOAT fade)
-    {
-        SaXAudio::ResumeAll(fade);
-    }
-
-    /// <summary>
-    /// Add ogg audio data to the sound bank
-    /// The data will be decoded (async) and stored in memory
-    /// </summary>
-    /// <param name="buffer">The ogg data</param>
-    /// <param name="length">The length in bytes of the data</param>
-    /// <returns>unique bankID for that audio data</returns>
-    EXPORT INT32 BankAddOgg(const BYTE* buffer, UINT32 length)
-    {
-        AudioData* data = new AudioData;
-        INT32 bankID = SaXAudio::Add(data);
-        if (bankID >= 0)
-            SaXAudio::StartDecodeOgg(bankID, buffer, length);
-        return bankID;
-    }
-    /// <summary>
-    /// Remove and free the memory of the specified audio data
-    /// </summary>
-    /// <param name="bankID">The bankID of the data to remove</param>
-    EXPORT void BankRemove(INT32 bankID)
-    {
-        SaXAudio::Remove(bankID);
-    }
-
-    /// <summary>
-    /// Create a voice for playing the specified audio data
-    /// When the audio data finished playing, the voice will be deleted
-    /// </summary>
-    /// <param name="bankID">The bankID of the data to play</param>
-    /// <param name="paused">when false, the audio will start playing immediately</param>
-    /// <returns>unique voiceID</returns>
-    EXPORT INT32 CreateVoice(INT32 bankID, BOOL paused)
-    {
-        AudioVoice* voice = SaXAudio::CreateVoice(bankID);
-
-        if (!voice)
-            return -1;
-
-        if (!paused)
-            voice->Start();
-
-        return voice->VoiceID;
-    }
-
-    /// <summary>
-    /// Check if the specified voice exists
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns>true if the specified voice exists</returns>
-    EXPORT BOOL VoiceExist(INT32 voiceID)
-    {
-        return SaXAudio::GetVoice(voiceID) != nullptr;
-    }
-
-    /// <summary>
-    /// Starts playing the specified voice
-    /// Resets the pause stack
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns>true if successful or already playing</returns>
-    EXPORT BOOL Start(INT32 voiceID)
-    {
-        return StartAtSample(voiceID, 0);
-    }
-
-    /// <summary>
-    /// Starts playing the specified voice at a specific sample
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="sample"></param>
-    /// <returns>true if successful</returns>
-    EXPORT BOOL StartAtSample(INT32 voiceID, UINT32 sample)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            return voice->Start(sample);
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Starts playing the specified voice at a specific time in seconds
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="time"></param>
-    /// <returns></returns>
-    EXPORT BOOL StartAtTime(INT32 voiceID, FLOAT time)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice && voice->BankData && time >= 0)
-        {
-            UINT32 sample = (UINT32)(time * voice->BankData->SampleRate);
-            return voice->Start(sample);
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Stops playing the specified voice
-    /// This will also delete the voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="time"></param>
-    /// <returns></returns>
-    EXPORT BOOL Stop(INT32 voiceID, FLOAT fade)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            return voice->Stop(fade);
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Pause the voice and increase the pause stack
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="fade">The duration of the fade in seconds</param>
-    /// <returns>value of the pause stack</returns>
-    EXPORT UINT32 Pause(INT32 voiceID, FLOAT fade)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            return voice->Pause(fade);
-        }
-        return 0;
-    }
-
-    /// <summary>
-    /// Reduce the pause stack and resume playing the voice if empty
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="fade"></param>
-    /// <returns>value of the pause stack</returns>
-    EXPORT UINT32 Resume(INT32 voiceID, FLOAT fade)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            return voice->Resume(fade);
-        }
-        return 0;
-    }
-
-    /// <summary>
-    /// Gets the pause stack value of the specified voice, 0 if empty
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
-    EXPORT UINT32 GetPauseStack(INT32 voiceID)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            return voice->GetPauseStack();
-        }
-        return 0;
-    }
-
-    /// <summary>
-    /// Sets the volume of the voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="volume">[0, 1]</param>
-    EXPORT void SetVolume(INT32 voiceID, FLOAT volume, FLOAT fade)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            voice->SetVolume(volume, fade);
-        }
-    }
-
-    /// <summary>
-    /// Sets the playback speed of the voice
-    /// This will affect the pitch of the audio
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="speed"></param>
-    EXPORT void SetSpeed(INT32 voiceID, FLOAT speed, FLOAT fade)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            voice->SetSpeed(speed, fade);
-        }
-    }
-
-    /// <summary>
-    /// Sets the panning of the voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="panning">[-1, 1]</param>
-    EXPORT void SetPanning(INT32 voiceID, FLOAT panning, FLOAT fade)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            voice->SetPanning(panning, fade);
-        }
-    }
-
-    /// <summary>
-    /// Sets if the voice should loop
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="looping"></param>
-    EXPORT void SetLooping(INT32 voiceID, BOOL looping)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            if (looping == voice->Looping)
-                return;
-
-            voice->Looping = looping;
-            if (looping)
-            {
-                // Start looping
-                if (voice->IsPlaying)
-                {
-                    voice->ChangeLoopPoints(voice->LoopStart, voice->LoopEnd);
-                }
-            }
-            else if (voice->IsPlaying && voice->SourceVoice)
-            {
-                // Stop looping
-                // TODO: this should be done by sending a new source buffer so the audio can continue playing past LoopEnd
-                voice->SourceVoice->ExitLoop();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Sets the start and end looping points
-    /// By default the looping points are [0, last sample]
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="start">in samples</param>
-    /// <param name="end">in samples</param>
-    EXPORT void SetLoopPoints(INT32 voiceID, UINT32 start, UINT32 end)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            voice->ChangeLoopPoints(start, end);
-        }
-    }
-
-    /// <summary>
-    /// Gets the volume of the specified voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
-    EXPORT FLOAT GetVolume(INT32 voiceID)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            return voice->Volume;
-        }
-        return 1.0f;
-    }
-
-    /// <summary>
-    /// Gets the speed of the specified voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
-    EXPORT FLOAT GetSpeed(INT32 voiceID)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            return voice->Speed;
-        }
-        return 1.0f;
-    }
-
-    /// <summary>
-    /// Gets the panning of the specified voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
-    EXPORT FLOAT GetPanning(INT32 voiceID)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            return voice->Panning;
-        }
-        return 0.0f;
-    }
-
-    /// <summary>
-    /// Gets the specified voice is looping
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
-    EXPORT BOOL GetLooping(INT32 voiceID)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            return voice->Looping;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Gets the position of the playing voice in samples
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns>sample position if playing or 0</returns>
-    EXPORT UINT32 GetPositionSample(INT32 voiceID)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice)
-        {
-            return voice->GetPosition();
-        }
-        return 0;
-    }
-
-    /// <summary>
-    /// Gets the position of the playing voice in seconds
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns>position in seconds if playing or 0</returns>
-    EXPORT FLOAT GetPositionTime(INT32 voiceID)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (voice && voice->BankData)
-        {
-            return (FLOAT)voice->GetPosition() / voice->BankData->SampleRate;
-        }
-        return 0.0f;
-    }
-
-    /// <summary>
-    /// Sets a callback for when the voice finished playing
-    /// </summary>
-    /// <param name="callback"></param>
-    EXPORT void SetOnFinishedCallback(OnFinishedCallback callback)
-    {
-        Log(-1, -1, "[OnVoiceFinished]");
-        SaXAudio::OnFinishedCallback = callback;
     }
 }

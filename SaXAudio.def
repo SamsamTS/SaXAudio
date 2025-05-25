@@ -37,4 +37,4 @@ EXPORTS
 	GetPositionSample
 	GetPositionTime
 	
-	OnVoiceFinished
+	SetOnFinishedCallback

@@ -55,10 +55,10 @@ namespace SaXAudio
             Buffer.PlayBegin = atSample;
 
         // Set up the looping
-        if (Looping && LoopStart < BankData->TotalSamples)
+        if (Looping && LoopStart < (BankData->TotalSamples -1))
         {
             Buffer.LoopBegin = LoopStart;
-            Buffer.LoopLength = (LoopEnd > 0) ? LoopEnd - LoopStart : BankData->TotalSamples - LoopStart;
+            Buffer.LoopLength = (LoopEnd > 0) ? LoopEnd - LoopStart : (BankData->TotalSamples -1) - LoopStart;
             Buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
             Log(BankID, VoiceID, "[Start] Loop: " + to_string(Buffer.LoopBegin) + " " + to_string(Buffer.LoopLength + Buffer.LoopBegin));
         }
@@ -128,10 +128,10 @@ namespace SaXAudio
         m_pauseStack++;
         Log(BankID, VoiceID, "[Pause] stack: " + to_string(m_pauseStack));
 
-        if (!IsPlaying || m_pauseStack > 1)
+        if (!IsPlaying && !m_fadeInfo.stop)
             return m_pauseStack;
 
-        if (fade > 0 && Volume > 0)
+        if (fade > 0 && Volume > 0 && !m_fadeInfo.stop)
         {
             FadeVolume(0, fade);
             m_fadeInfo.pause = true;
@@ -139,7 +139,10 @@ namespace SaXAudio
         else
         {
             m_fadeInfo.pause = false;
-            m_fadeInfo.volumeRate = 0;
+            if (m_fading && m_fadeInfo.stop)
+                m_fading = false;
+            else
+                m_fadeInfo.volumeRate = 0;
             SourceVoice->Stop();
         }
         return m_pauseStack;
@@ -152,7 +155,7 @@ namespace SaXAudio
         m_pauseStack--;
         Log(BankID, VoiceID, "[Resume] stack: " + to_string(m_pauseStack) + (Looping ? " - Looping" : ""));
 
-        if (!IsPlaying || m_pauseStack > 0)
+        if (m_pauseStack > 0)
             return m_pauseStack;
 
         SourceVoice->Start();
@@ -165,7 +168,7 @@ namespace SaXAudio
             FadeVolume(target, fade);
             Volume = target;
         }
-        else if (m_fadeInfo.speedRate != 0 || m_fadeInfo.panningRate != 0)
+        else if (m_fadeInfo.volumeRate != 0 || m_fadeInfo.speedRate != 0 || m_fadeInfo.panningRate != 0)
         {
             // Resume the fading interrupted by pause
             m_fading = true;
@@ -213,7 +216,7 @@ namespace SaXAudio
         Log(BankID, VoiceID, "[ChangeLoopPoints] start: " + to_string(start) + " end: " + to_string(end));
 
         if (end == 0)
-            end = BankData->TotalSamples;
+            end = BankData->TotalSamples - 1;
 
         // Make sure LoopStart < LoopEnd
         if (start < end)
@@ -419,52 +422,98 @@ namespace SaXAudio
         if (rightChannelIndex == -1 && destChannels >= 2) rightChannelIndex = 1;
         else if (rightChannelIndex == -1) rightChannelIndex = leftChannelIndex; // Mono output
 
-        // Set up the matrix - same logic for both mono and stereo
-        // (mono is treated as stereo with identical channels)
+        // If we don't have explicit left/right channels, use first two channels
+        if (leftChannelIndex == -1 && destChannels >= 1) leftChannelIndex = 0;
+        if (rightChannelIndex == -1 && destChannels >= 2) rightChannelIndex = 1;
+        else if (rightChannelIndex == -1) rightChannelIndex = leftChannelIndex; // Mono output
 
-        // Apply panning to front L/R channels
-        if (leftChannelIndex >= 0)
+        // Set up the matrix based on source configuration
+        if (sourceChannels == 1)
         {
-            outputMatrix[0 * destChannels + leftChannelIndex] = leftGain;   // Left source -> Left dest
-            outputMatrix[1 * destChannels + leftChannelIndex] = leftGain;   // Right source -> Left dest
-        }
-        if (rightChannelIndex >= 0)
-        {
-            outputMatrix[0 * destChannels + rightChannelIndex] = rightGain; // Left source -> Right dest
-            outputMatrix[1 * destChannels + rightChannelIndex] = rightGain; // Right source -> Right dest
-        }
+            // Mono source: single channel matrix
+            // Apply panning to front L/R channels
+            if (leftChannelIndex >= 0)
+            {
+                outputMatrix[0 * destChannels + leftChannelIndex] = leftGain;
+            }
+            if (rightChannelIndex >= 0)
+            {
+                outputMatrix[0 * destChannels + rightChannelIndex] = rightGain;
+            }
 
-        // Mix to center channel (if present) - sum L+R at reduced level
-        if (centerChannelIndex >= 0)
-        {
-            FLOAT centerGain = 0.5f; // -6dB to prevent overload when summing L+R
-            outputMatrix[0 * destChannels + centerChannelIndex] = centerGain; // Left -> Center
-            outputMatrix[1 * destChannels + centerChannelIndex] = centerGain; // Right -> Center
-        }
+            // Send to center channel (if present)
+            if (centerChannelIndex >= 0)
+            {
+                FLOAT centerGain = 0.707f; // No summing, so use -3dB
+                outputMatrix[0 * destChannels + centerChannelIndex] = centerGain;
+            }
 
-        // Send to surround channels at reduced level (ambient effect)
-        FLOAT surroundGain = 0.35f; // -9dB
-        if (backLeftChannelIndex >= 0)
-        {
-            outputMatrix[0 * destChannels + backLeftChannelIndex] = surroundGain; // Left -> Back Left
+            // Send to surround channels at reduced level
+            FLOAT surroundGain = 0.5f; // -6dB
+            if (backLeftChannelIndex >= 0)
+            {
+                outputMatrix[0 * destChannels + backLeftChannelIndex] = surroundGain;
+            }
+            if (backRightChannelIndex >= 0)
+            {
+                outputMatrix[0 * destChannels + backRightChannelIndex] = surroundGain;
+            }
+            if (sideLeftChannelIndex >= 0)
+            {
+                outputMatrix[0 * destChannels + sideLeftChannelIndex] = surroundGain;
+            }
+            if (sideRightChannelIndex >= 0)
+            {
+                outputMatrix[0 * destChannels + sideRightChannelIndex] = surroundGain;
+            }
         }
-        if (backRightChannelIndex >= 0)
+        else if (sourceChannels == 2)
         {
-            outputMatrix[1 * destChannels + backRightChannelIndex] = surroundGain; // Right -> Back Right
-        }
-        if (sideLeftChannelIndex >= 0)
-        {
-            outputMatrix[0 * destChannels + sideLeftChannelIndex] = surroundGain; // Left -> Side Left
-        }
-        if (sideRightChannelIndex >= 0)
-        {
-            outputMatrix[1 * destChannels + sideRightChannelIndex] = surroundGain; // Right -> Side Right
+            // Stereo source: two channel matrix
+            // Apply panning to front L/R channels
+            if (leftChannelIndex >= 0)
+            {
+                outputMatrix[0 * destChannels + leftChannelIndex] = leftGain;   // Left -> Left
+                outputMatrix[1 * destChannels + leftChannelIndex] = leftGain;   // Right -> Left
+            }
+            if (rightChannelIndex >= 0)
+            {
+                outputMatrix[0 * destChannels + rightChannelIndex] = rightGain; // Left -> Right
+                outputMatrix[1 * destChannels + rightChannelIndex] = rightGain; // Right -> Right
+            }
+
+            // Mix to center channel (if present) - sum L+R at reduced level
+            if (centerChannelIndex >= 0)
+            {
+                FLOAT centerGain = 0.5f; // -6dB to prevent overload when summing L+R
+                outputMatrix[0 * destChannels + centerChannelIndex] = centerGain; // Left -> Center
+                outputMatrix[1 * destChannels + centerChannelIndex] = centerGain; // Right -> Center
+            }
+
+            // Send to surround channels at reduced level (ambient effect)
+            FLOAT surroundGain = 0.35f; // -9dB
+            if (backLeftChannelIndex >= 0)
+            {
+                outputMatrix[0 * destChannels + backLeftChannelIndex] = surroundGain; // Left -> Back Left
+            }
+            if (backRightChannelIndex >= 0)
+            {
+                outputMatrix[1 * destChannels + backRightChannelIndex] = surroundGain; // Right -> Back Right
+            }
+            if (sideLeftChannelIndex >= 0)
+            {
+                outputMatrix[0 * destChannels + sideLeftChannelIndex] = surroundGain; // Left -> Side Left
+            }
+            if (sideRightChannelIndex >= 0)
+            {
+                outputMatrix[1 * destChannels + sideRightChannelIndex] = surroundGain; // Right -> Side Right
+            }
         }
 
         // LFE channel gets no direct signal (would need bass management for proper implementation)
 
         // Apply the output matrix to the voice
-        HRESULT hr = SourceVoice->SetOutputMatrix(nullptr, 2, destChannels, outputMatrix);
+        HRESULT hr = SourceVoice->SetOutputMatrix(nullptr, sourceChannels, destChannels, outputMatrix);
         if (FAILED(hr))
         {
             Log(BankID, VoiceID, "[SetOutputMatrix] FAILED");
@@ -529,7 +578,7 @@ namespace SaXAudio
             (voice->m_fadeInfo.speedRate != 0 ? " speedRate: " + to_string(voice->m_fadeInfo.speedRate) : "") +
             (voice->m_fadeInfo.panningRate != 0 ? " panningRate: " + to_string(voice->m_fadeInfo.panningRate) : ""));
 
-#ifdef _DEBUG
+#ifdef LOGGING
         auto now = GetTime();
 #endif
         do
@@ -582,7 +631,8 @@ namespace SaXAudio
             voice->SourceVoice->Stop();
             voice->m_fadeInfo.pause = false;
         }
-        if (voice->m_fadeInfo.stop)
+
+        if (voice->m_fadeInfo.stop && voice->m_fadeInfo.volumeRate == 0)
         {
             Log(voice->BankID, voice->VoiceID, "[Fade] Stopping V" + to_string(voice->VoiceID));
             voice->SourceVoice->Stop();
@@ -651,6 +701,12 @@ namespace SaXAudio
 
         IsPlaying = false;
         SaXAudio::RemoveVoice(VoiceID);
+
+        if (SaXAudio::OnFinishedCallback != nullptr)
+        {
+            thread onFinished(*SaXAudio::OnFinishedCallback, VoiceID);
+            onFinished.detach();
+        }
     }
 
     // -------------------------------------------------------
@@ -893,11 +949,12 @@ namespace SaXAudio
         voice->Buffer.pAudioData = reinterpret_cast<const BYTE*>(data->Buffer);
         voice->Buffer.Flags = XAUDIO2_END_OF_STREAM;
 
+        voice->BankID = bankID;
+        voice->VoiceID = m_voiceCounter++;
+
         // Set up the output matrix
         voice->SetOutputMatrix(0.0f);
 
-        voice->BankID = bankID;
-        voice->VoiceID = m_voiceCounter++;
         m_voices[voice->VoiceID] = voice;
 
         Log(bankID, voice->VoiceID, "[CreateVoice] Created voice");
@@ -1401,11 +1458,10 @@ namespace SaXAudio
     /// <summary>
     /// Sets a callback for when the voice finished playing
     /// </summary>
-    /// <param name="voiceID"></param>
     /// <param name="callback"></param>
-    EXPORT void OnVoiceFinished(INT32 voiceID, CallbackFunction callback)
+    EXPORT void SetOnFinishedCallback(OnFinishedCallback callback)
     {
         Log(-1, -1, "[OnVoiceFinished]");
-        // TODO
+        SaXAudio::OnFinishedCallback = callback;
     }
 }

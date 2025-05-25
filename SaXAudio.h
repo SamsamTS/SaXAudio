@@ -30,12 +30,17 @@
 #define _X86_
 #endif
 
+//---------------------------------------------------------------------
+// Enables logging
+//---------------------------------------------------------------------
+#define LOGGING
+
 #include <minwindef.h>
 #include <winnt.h>
 #include <xaudio2.h>
 #include <xaudio2fx.h>
 #include <unordered_map>
-#include <mutex>
+#include <thread>
 #include <atomic>
 using namespace std;
 
@@ -46,8 +51,7 @@ using namespace std;
 
 namespace SaXAudio
 {
-
-    typedef void (*CallbackFunction)(INT32 voiceID);
+    typedef void (*OnFinishedCallback)(INT32 voiceID);
 
     EXPORT BOOL Create();
     EXPORT void Release();
@@ -87,7 +91,7 @@ namespace SaXAudio
     EXPORT UINT32 GetPositionSample(INT32 voiceID);
     EXPORT FLOAT GetPositionTime(INT32 voiceID);
 
-    EXPORT void OnVoiceFinished(INT32 voiceID, CallbackFunction callback);
+    EXPORT void SetOnFinishedCallback(OnFinishedCallback callback);
 
     struct AudioData
     {
@@ -197,6 +201,8 @@ namespace SaXAudio
         static DWORD m_channelMask;
         static UINT32 m_outputChannels;
     public:
+        static OnFinishedCallback OnFinishedCallback;
+
         static BOOL Init();
 
         static void Release();
@@ -230,11 +236,14 @@ namespace SaXAudio
 
     DWORD SaXAudio::m_channelMask = 0;
     UINT32 SaXAudio::m_outputChannels = 0;
+
+    OnFinishedCallback SaXAudio::OnFinishedCallback = nullptr;
 }
 
-#ifdef _DEBUG
+#ifdef LOGGING
 
 #define GetTime() chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch()).count()
+#include <mutex>
 #include <chrono>
 #include <fstream>
 #include <iomanip>
@@ -258,14 +267,14 @@ void Log(INT32 bankID, INT32 voiceId, string message)
         << setw(2) << setfill('0') << seconds % 60 << "."
         << setw(3) << setfill('0') << millisec % 1000;
     if (bankID > 0)
-        g_log << " | " << setw(4) << setfill(' ') << left << "B" + to_string(bankID);
+        g_log << " | " << setw(5) << setfill(' ') << left << "B" + to_string(bankID);
     else
-        g_log << " |     ";
+        g_log << " |      ";
 
     if (voiceId > 0)
-        g_log << " " << setw(5) << setfill(' ') << left << "V" + to_string(voiceId) << " | ";
+        g_log << " | " << setw(6) << setfill(' ') << left << "V" + to_string(voiceId) << " | ";
     else
-        g_log << "       | ";
+        g_log << " |        | ";
 
     g_log << message << endl;
     g_log.flush();
@@ -274,5 +283,5 @@ void Log(INT32 bankID, INT32 voiceId, string message)
 }
 
 #else
-#define Log(message)
-#endif // DEBUG
+#define Log(bankID, voiceId, message)
+#endif // LOGGING

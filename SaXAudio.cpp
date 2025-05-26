@@ -82,14 +82,14 @@ namespace SaXAudio
     /// <summary>
     /// Pause all playing voices
     /// </summary>
-    EXPORT void PauseAll(FLOAT fade)
+    EXPORT void PauseAll(const FLOAT fade)
     {
         SaXAudio::PauseAll(fade);
     }
     /// <summary>
     /// Resume playing all voices
     /// </summary>
-    EXPORT void ResumeAll(FLOAT fade)
+    EXPORT void ResumeAll(const FLOAT fade)
     {
         SaXAudio::ResumeAll(fade);
     }
@@ -97,7 +97,7 @@ namespace SaXAudio
     /// Protect a voice from PauseAll and ResumeAll
     /// </summary>
     /// <param name="voiceID"></param>
-    EXPORT void Protect(INT32 voiceID)
+    EXPORT void Protect(const INT32 voiceID)
     {
         SaXAudio::Protect(voiceID);
     }
@@ -109,7 +109,7 @@ namespace SaXAudio
     /// <param name="buffer">The ogg data</param>
     /// <param name="length">The length in bytes of the data</param>
     /// <returns>unique bankID for that audio data</returns>
-    EXPORT INT32 BankAddOgg(const BYTE* buffer, UINT32 length)
+    EXPORT INT32 BankAddOgg(const BYTE* buffer, const UINT32 length)
     {
         AudioData* data = new AudioData;
         INT32 bankID = SaXAudio::Add(data);
@@ -121,7 +121,7 @@ namespace SaXAudio
     /// Remove and free the memory of the specified audio data
     /// </summary>
     /// <param name="bankID">The bankID of the data to remove</param>
-    EXPORT void BankRemove(INT32 bankID)
+    EXPORT void BankRemove(const INT32 bankID)
     {
         SaXAudio::Remove(bankID);
     }
@@ -133,7 +133,7 @@ namespace SaXAudio
     /// <param name="bankID">The bankID of the data to play</param>
     /// <param name="paused">when false, the audio will start playing immediately</param>
     /// <returns>unique voiceID</returns>
-    EXPORT INT32 CreateVoice(INT32 bankID, BOOL paused)
+    EXPORT INT32 CreateVoice(const INT32 bankID, const BOOL paused)
     {
         AudioVoice* voice = SaXAudio::CreateVoice(bankID);
 
@@ -151,7 +151,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <returns>true if the specified voice exists</returns>
-    EXPORT BOOL VoiceExist(INT32 voiceID)
+    EXPORT BOOL VoiceExist(const INT32 voiceID)
     {
         return SaXAudio::GetVoice(voiceID) != nullptr;
     }
@@ -162,7 +162,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <returns>true if successful or already playing</returns>
-    EXPORT BOOL Start(INT32 voiceID)
+    EXPORT BOOL Start(const INT32 voiceID)
     {
         return StartAtSample(voiceID, 0);
     }
@@ -173,7 +173,7 @@ namespace SaXAudio
     /// <param name="voiceID"></param>
     /// <param name="sample"></param>
     /// <returns>true if successful</returns>
-    EXPORT BOOL StartAtSample(INT32 voiceID, UINT32 sample)
+    EXPORT BOOL StartAtSample(const INT32 voiceID, const UINT32 sample)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -189,7 +189,7 @@ namespace SaXAudio
     /// <param name="voiceID"></param>
     /// <param name="time"></param>
     /// <returns></returns>
-    EXPORT BOOL StartAtTime(INT32 voiceID, FLOAT time)
+    EXPORT BOOL StartAtTime(const INT32 voiceID, const FLOAT time)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice && voice->BankData && time >= 0)
@@ -207,7 +207,7 @@ namespace SaXAudio
     /// <param name="voiceID"></param>
     /// <param name="time"></param>
     /// <returns></returns>
-    EXPORT BOOL Stop(INT32 voiceID, FLOAT fade)
+    EXPORT BOOL Stop(const INT32 voiceID, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -225,7 +225,7 @@ namespace SaXAudio
     /// <param name="voiceID"></param>
     /// <param name="fade">The duration of the fade in seconds</param>
     /// <returns>value of the pause stack</returns>
-    EXPORT UINT32 Pause(INT32 voiceID, FLOAT fade)
+    EXPORT UINT32 Pause(const INT32 voiceID, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -241,7 +241,7 @@ namespace SaXAudio
     /// <param name="voiceID"></param>
     /// <param name="fade"></param>
     /// <returns>value of the pause stack</returns>
-    EXPORT UINT32 Resume(INT32 voiceID, FLOAT fade)
+    EXPORT UINT32 Resume(const INT32 voiceID, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -256,7 +256,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <returns></returns>
-    EXPORT UINT32 GetPauseStack(INT32 voiceID)
+    EXPORT UINT32 GetPauseStack(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -271,7 +271,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <param name="volume">[0, 1]</param>
-    EXPORT void SetVolume(INT32 voiceID, FLOAT volume, FLOAT fade)
+    EXPORT void SetVolume(const INT32 voiceID, const FLOAT volume, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -286,7 +286,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <param name="speed"></param>
-    EXPORT void SetSpeed(INT32 voiceID, FLOAT speed, FLOAT fade)
+    EXPORT void SetSpeed(const INT32 voiceID, const FLOAT speed, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -300,7 +300,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <param name="panning">[-1, 1]</param>
-    EXPORT void SetPanning(INT32 voiceID, FLOAT panning, FLOAT fade)
+    EXPORT void SetPanning(const INT32 voiceID, const FLOAT panning, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -314,7 +314,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <param name="looping"></param>
-    EXPORT void SetLooping(INT32 voiceID, BOOL looping)
+    EXPORT void SetLooping(const INT32 voiceID, const BOOL looping)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -347,7 +347,7 @@ namespace SaXAudio
     /// <param name="voiceID"></param>
     /// <param name="start">in samples</param>
     /// <param name="end">in samples</param>
-    EXPORT void SetLoopPoints(INT32 voiceID, UINT32 start, UINT32 end)
+    EXPORT void SetLoopPoints(const INT32 voiceID, const UINT32 start, const UINT32 end)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -361,7 +361,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <returns></returns>
-    EXPORT FLOAT GetVolume(INT32 voiceID)
+    EXPORT FLOAT GetVolume(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -376,7 +376,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <returns></returns>
-    EXPORT FLOAT GetSpeed(INT32 voiceID)
+    EXPORT FLOAT GetSpeed(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -391,7 +391,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <returns></returns>
-    EXPORT FLOAT GetPanning(INT32 voiceID)
+    EXPORT FLOAT GetPanning(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -406,7 +406,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <returns></returns>
-    EXPORT BOOL GetLooping(INT32 voiceID)
+    EXPORT BOOL GetLooping(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -421,7 +421,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <returns>sample position if playing or 0</returns>
-    EXPORT UINT32 GetPositionSample(INT32 voiceID)
+    EXPORT UINT32 GetPositionSample(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice)
@@ -436,7 +436,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <returns>position in seconds if playing or 0</returns>
-    EXPORT FLOAT GetPositionTime(INT32 voiceID)
+    EXPORT FLOAT GetPositionTime(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice && voice->BankData)
@@ -450,7 +450,7 @@ namespace SaXAudio
     /// Sets a callback for when the voice finished playing
     /// </summary>
     /// <param name="callback"></param>
-    EXPORT void SetOnFinishedCallback(OnFinishedCallback callback)
+    EXPORT void SetOnFinishedCallback(const OnFinishedCallback callback)
     {
         Log(-1, -1, "[OnVoiceFinished]");
         SaXAudio::OnFinishedCallback = callback;
@@ -460,7 +460,7 @@ namespace SaXAudio
     // AudioVoice class implementation
     // -------------------------------------------------------
 
-    BOOL AudioVoice::Start(UINT32 atSample)
+    BOOL AudioVoice::Start(const UINT32 atSample)
     {
         if (!SourceVoice || !BankData) return false;
         Log(BankID, VoiceID, "[Start] at: " + to_string(atSample));
@@ -521,7 +521,7 @@ namespace SaXAudio
         return IsPlaying;
     }
 
-    BOOL AudioVoice::Stop(FLOAT fade)
+    BOOL AudioVoice::Stop(const FLOAT fade)
     {
         if (!SourceVoice || !IsPlaying) return false;
         Log(BankID, VoiceID, "[Stop] fade: " + to_string(fade));
@@ -547,7 +547,7 @@ namespace SaXAudio
         return true;
     }
 
-    UINT32 AudioVoice::Pause(FLOAT fade)
+    UINT32 AudioVoice::Pause(const FLOAT fade)
     {
         if (!SourceVoice) return 0;
 
@@ -574,7 +574,7 @@ namespace SaXAudio
         return m_pauseStack;
     }
 
-    UINT32 AudioVoice::Resume(FLOAT fade)
+    UINT32 AudioVoice::Resume(const FLOAT fade)
     {
         if (!SourceVoice || m_pauseStack == 0) return 0;
 
@@ -636,7 +636,7 @@ namespace SaXAudio
         return (INT32)position;
     }
 
-    void AudioVoice::ChangeLoopPoints(UINT32 start, UINT32 end)
+    void AudioVoice::ChangeLoopPoints(const UINT32 start, UINT32 end)
     {
         if (!SourceVoice || !BankData) return;
         Log(BankID, VoiceID, "[ChangeLoopPoints] start: " + to_string(start) + " end: " + to_string(end));
@@ -698,7 +698,7 @@ namespace SaXAudio
         }
     }
 
-    void AudioVoice::SetVolume(FLOAT volume, FLOAT fade)
+    void AudioVoice::SetVolume(const FLOAT volume, const FLOAT fade)
     {
         if (!SourceVoice || Volume == volume) return;
         Log(BankID, VoiceID, "[SetVolume] to: " + to_string(volume) + " fade: " + to_string(fade));
@@ -715,7 +715,7 @@ namespace SaXAudio
         Volume = volume;
     }
 
-    void AudioVoice::SetSpeed(FLOAT speed, FLOAT fade)
+    void AudioVoice::SetSpeed(FLOAT speed, const FLOAT fade)
     {
         // TODO: would this mess up GetPosition calculation?
         if (!SourceVoice || !BankData || Speed == speed) return;
@@ -741,7 +741,7 @@ namespace SaXAudio
         Speed = speed;
     }
 
-    void AudioVoice::SetPanning(FLOAT panning, FLOAT fade)
+    void AudioVoice::SetPanning(const FLOAT panning, const FLOAT fade)
     {
         if (!SourceVoice || Panning == panning) return;
         Log(BankID, VoiceID, "[SetPanning] to: " + to_string(panning) + " fade: " + to_string(fade));
@@ -759,7 +759,7 @@ namespace SaXAudio
     }
 
     // Fast approximation of cosine using Taylor series (good for [0, π/2])
-    inline FLOAT FastCos(FLOAT x)
+    inline FLOAT FastCos(const FLOAT x)
     {
         // Normalize to [0, π/2] and use Taylor series: cos(x) ≈ 1 - x²/2 + x⁴/24 - x⁶/720
         FLOAT x2 = x * x;
@@ -769,7 +769,7 @@ namespace SaXAudio
     }
 
     // Fast approximation of sine using Taylor series (good for [0, π/2])
-    inline FLOAT FastSin(FLOAT x)
+    inline FLOAT FastSin(const FLOAT x)
     {
         // Taylor series: sin(x) ≈ x - x³/6 + x⁵/120 - x⁷/5040
         FLOAT x2 = x * x;
@@ -969,13 +969,13 @@ namespace SaXAudio
         IsPlaying = false;
     }
 
-    inline FLOAT AudioVoice::GetRate(FLOAT from, FLOAT to, FLOAT duration)
+    inline FLOAT AudioVoice::GetRate(const FLOAT from, const FLOAT to, const FLOAT duration)
     {
         Log(-1, -1, "[GetRate] from: " + to_string(from) + " to: " + to_string(to) + " duration: " + to_string(duration));
         return (to - from) / (duration * 100.0f);
     }
 
-    inline FLOAT MoveToTarget(FLOAT start, FLOAT end, FLOAT rate)
+    inline FLOAT MoveToTarget(const FLOAT start, const FLOAT end, const FLOAT rate)
     {
         if (rate > 0 && start < end)
         {
@@ -1069,7 +1069,7 @@ namespace SaXAudio
         voice->m_fading = false;
     }
 
-    void AudioVoice::FadeVolume(FLOAT target, FLOAT duration)
+    void AudioVoice::FadeVolume(const FLOAT target, const FLOAT duration)
     {
         m_fadeInfo.volumeTarget = target;
         if (m_fading)
@@ -1086,7 +1086,7 @@ namespace SaXAudio
         }
     }
 
-    void AudioVoice::FadeSpeed(FLOAT target, FLOAT duration)
+    void AudioVoice::FadeSpeed(const FLOAT target, const FLOAT duration)
     {
         m_fadeInfo.speedTarget = target;
         if (m_fading)
@@ -1103,7 +1103,7 @@ namespace SaXAudio
         }
     }
 
-    void AudioVoice::FadePanning(FLOAT target, FLOAT duration)
+    void AudioVoice::FadePanning(const FLOAT target, const FLOAT duration)
     {
         m_fadeInfo.panningTarget = target;
         if (m_fading)
@@ -1143,6 +1143,20 @@ namespace SaXAudio
     // -------------------------------------------------------
     // SaXAudio class implementation
     // -------------------------------------------------------
+
+    IXAudio2* SaXAudio::m_XAudio = nullptr;
+    IXAudio2MasteringVoice* SaXAudio::m_masteringVoice = nullptr;
+
+    unordered_map<INT32, AudioData*> SaXAudio::m_bank;
+    INT32 SaXAudio::m_bankCounter = 0;
+
+    unordered_map<INT32, AudioVoice*> SaXAudio::m_voices;
+    INT32 SaXAudio::m_voiceCounter = 0;
+
+    DWORD SaXAudio::m_channelMask = 0;
+    UINT32 SaXAudio::m_outputChannels = 0;
+
+    OnFinishedCallback SaXAudio::OnFinishedCallback = nullptr;
 
     BOOL SaXAudio::Init()
     {
@@ -1230,7 +1244,7 @@ namespace SaXAudio
         m_XAudio->StartEngine();
     }
 
-    void SaXAudio::PauseAll(FLOAT fade)
+    void SaXAudio::PauseAll(const FLOAT fade)
     {
         if (!m_XAudio || !m_masteringVoice)
             return;
@@ -1243,7 +1257,7 @@ namespace SaXAudio
         }
     }
 
-    void SaXAudio::ResumeAll(FLOAT fade)
+    void SaXAudio::ResumeAll(const FLOAT fade)
     {
         if (!m_XAudio || !m_masteringVoice)
             return;
@@ -1256,7 +1270,7 @@ namespace SaXAudio
         }
     }
 
-    void SaXAudio::Protect(INT32 voiceID)
+    void SaXAudio::Protect(const INT32 voiceID)
     {
         if (!m_XAudio || !m_masteringVoice)
             return;
@@ -1278,7 +1292,7 @@ namespace SaXAudio
         return m_bankCounter - 1;
     }
 
-    void SaXAudio::Remove(INT32 bankID)
+    void SaXAudio::Remove(const INT32 bankID)
     {
         Log(bankID, -1, "[Remove]");
 
@@ -1311,7 +1325,7 @@ namespace SaXAudio
 
     }
 
-    BOOL SaXAudio::StartDecodeOgg(INT32 bankID, const BYTE* buffer, UINT32 length)
+    BOOL SaXAudio::StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length)
     {
         int error;
         stb_vorbis* vorbis = stb_vorbis_open_memory(buffer, length, &error, NULL);
@@ -1341,7 +1355,7 @@ namespace SaXAudio
         return data != nullptr;
     }
 
-    AudioVoice* SaXAudio::CreateVoice(INT32 bankID)
+    AudioVoice* SaXAudio::CreateVoice(const INT32 bankID)
     {
         AudioData* data = nullptr;
 
@@ -1408,7 +1422,7 @@ namespace SaXAudio
         return voice;
     }
 
-    AudioVoice* SaXAudio::GetVoice(INT32 voiceID)
+    AudioVoice* SaXAudio::GetVoice(const INT32 voiceID)
     {
         AudioVoice* voice = nullptr;
         auto it = m_voices.find(voiceID);
@@ -1417,7 +1431,7 @@ namespace SaXAudio
         return voice;
     }
 
-    void SaXAudio::DecodeOgg(INT32 bankID, stb_vorbis* vorbis)
+    void SaXAudio::DecodeOgg(const INT32 bankID, stb_vorbis* vorbis)
     {
         // Reset file position
         stb_vorbis_seek_start(vorbis);
@@ -1485,7 +1499,7 @@ namespace SaXAudio
         Log(bankID, -1, "[DecodeOgg] Decoding complete");
     }
 
-    void SaXAudio::RemoveVoice(INT32 voiceID)
+    void SaXAudio::RemoveVoice(const INT32 voiceID)
     {
         AudioVoice* voice = GetVoice(voiceID);
         if (voice)

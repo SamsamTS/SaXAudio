@@ -58,40 +58,40 @@ namespace SaXAudio
     EXPORT void StartEngine();
     EXPORT void StopEngine();
 
-    EXPORT void PauseAll(FLOAT fade = 0.1f);
-    EXPORT void ResumeAll(FLOAT fade = 0.1f);
-    EXPORT void Protect(INT32 voiceID);
+    EXPORT void PauseAll(const FLOAT fade = 0.1f);
+    EXPORT void ResumeAll(const FLOAT fade = 0.1f);
+    EXPORT void Protect(const INT32 voiceID);
 
-    EXPORT INT32 BankAddOgg(const BYTE* buffer, UINT32 length);
-    EXPORT void BankRemove(INT32 bankID);
+    EXPORT INT32 BankAddOgg(const BYTE* buffer, const UINT32 length);
+    EXPORT void BankRemove(const INT32 bankID);
 
-    EXPORT INT32 CreateVoice(INT32 bankID, BOOL paused = true);
-    EXPORT BOOL VoiceExist(INT32 voiceID);
+    EXPORT INT32 CreateVoice(const INT32 bankID, const BOOL paused = true);
+    EXPORT BOOL VoiceExist(const INT32 voiceID);
 
-    EXPORT BOOL Start(INT32 voiceID);
-    EXPORT BOOL StartAtSample(INT32 voiceID, UINT32 sample);
-    EXPORT BOOL StartAtTime(INT32 voiceID, FLOAT time);
-    EXPORT BOOL Stop(INT32 voiceID, FLOAT fade = 0.1f);
+    EXPORT BOOL Start(const INT32 voiceID);
+    EXPORT BOOL StartAtSample(const INT32 voiceID, const UINT32 sample);
+    EXPORT BOOL StartAtTime(const INT32 voiceID, const FLOAT time);
+    EXPORT BOOL Stop(const INT32 voiceID, const FLOAT fade = 0.1f);
 
-    EXPORT UINT32 Pause(INT32 voiceID, FLOAT fade = 0.1f);
-    EXPORT UINT32 Resume(INT32 voiceID, FLOAT fade = 0.1f);
-    EXPORT UINT32 GetPauseStack(INT32 voiceID);
+    EXPORT UINT32 Pause(const INT32 voiceID, const FLOAT fade = 0.1f);
+    EXPORT UINT32 Resume(const INT32 voiceID, const FLOAT fade = 0.1f);
+    EXPORT UINT32 GetPauseStack(const INT32 voiceID);
 
-    EXPORT void SetVolume(INT32 voiceID, FLOAT volume, FLOAT fade = 0);
-    EXPORT void SetSpeed(INT32 voiceID, FLOAT speed, FLOAT fade = 0);
-    EXPORT void SetPanning(INT32 voiceID, FLOAT panning, FLOAT fade = 0);
-    EXPORT void SetLooping(INT32 voiceID, BOOL looping);
-    EXPORT void SetLoopPoints(INT32 voiceID, UINT32 start, UINT32 end);
+    EXPORT void SetVolume(const INT32 voiceID, const FLOAT volume, const FLOAT fade = 0);
+    EXPORT void SetSpeed(const INT32 voiceID, const FLOAT speed, const FLOAT fade = 0);
+    EXPORT void SetPanning(const INT32 voiceID, const FLOAT panning, const FLOAT fade = 0);
+    EXPORT void SetLooping(const INT32 voiceID, const BOOL looping);
+    EXPORT void SetLoopPoints(const INT32 voiceID, const UINT32 start, const UINT32 end);
 
-    EXPORT FLOAT GetVolume(INT32 voiceID);
-    EXPORT FLOAT GetSpeed(INT32 voiceID);
-    EXPORT FLOAT GetPanning(INT32 voiceID);
-    EXPORT BOOL GetLooping(INT32 voiceID);
+    EXPORT FLOAT GetVolume(const INT32 voiceID);
+    EXPORT FLOAT GetSpeed(const INT32 voiceID);
+    EXPORT FLOAT GetPanning(const INT32 voiceID);
+    EXPORT BOOL GetLooping(const INT32 voiceID);
 
-    EXPORT UINT32 GetPositionSample(INT32 voiceID);
-    EXPORT FLOAT GetPositionTime(INT32 voiceID);
+    EXPORT UINT32 GetPositionSample(const INT32 voiceID);
+    EXPORT FLOAT GetPositionTime(const INT32 voiceID);
 
-    EXPORT void SetOnFinishedCallback(OnFinishedCallback callback);
+    EXPORT void SetOnFinishedCallback(const OnFinishedCallback callback);
 
     struct AudioData
     {
@@ -132,6 +132,7 @@ namespace SaXAudio
         FLOAT m_volumeTarget = 0;
 
         atomic<BOOL> m_tempFlush = false;
+
     public:
         AudioData* BankData = nullptr;
         IXAudio2SourceVoice* SourceVoice = nullptr;
@@ -151,23 +152,23 @@ namespace SaXAudio
         atomic<BOOL> IsPlaying = false;
         BOOL IsProtected = false;
 
-        BOOL Start(UINT32 atSample = 0);
-        BOOL Stop(FLOAT fade = 0.0f);
+        BOOL Start(const UINT32 atSample = 0);
+        BOOL Stop(const FLOAT fade = 0.0f);
 
-        UINT32 Pause(FLOAT fade = 0.0f);
-        UINT32 Resume(FLOAT fade = 0.0f);
+        UINT32 Pause(const FLOAT fade = 0.0f);
+        UINT32 Resume(const FLOAT fade = 0.0f);
         UINT32 GetPauseStack();
 
         UINT32 GetPosition();
 
-        void ChangeLoopPoints(UINT32 start, UINT32 end);
+        void ChangeLoopPoints(const UINT32 start, const UINT32 end);
 
-        void SetVolume(FLOAT volume, FLOAT fade = 0);
-        void SetSpeed(FLOAT speed, FLOAT fade = 0);
-        void SetPanning(FLOAT panning, FLOAT fade = 0);
+        void SetVolume(const FLOAT volume, const FLOAT fade = 0);
+        void SetSpeed(FLOAT speed, const FLOAT fade = 0);
+        void SetPanning(FLOAT panning, const FLOAT fade = 0);
 
         void Reset();
-        void SetOutputMatrix(FLOAT panning);
+        void SetOutputMatrix(const FLOAT panning);
 
         // Callbacks
         void __stdcall OnBufferEnd(void* pBufferContext) override;
@@ -179,13 +180,14 @@ namespace SaXAudio
         void __stdcall OnBufferStart(void*) override { IsPlaying = true; }
         void __stdcall OnLoopEnd(void*) override {}
         void __stdcall OnVoiceError(void*, HRESULT) override {}
+
     private:
-        static FLOAT GetRate(FLOAT from, FLOAT to, FLOAT duration);
+        static FLOAT GetRate(const FLOAT from, const FLOAT to, const FLOAT duration);
         static void Fade(AudioVoice* voice);
 
-        void FadeVolume(FLOAT to, FLOAT duration);
-        void FadeSpeed(FLOAT to, FLOAT duration);
-        void FadePanning(FLOAT to, FLOAT duration);
+        void FadeVolume(const FLOAT to, const FLOAT duration);
+        void FadeSpeed(const FLOAT to, const FLOAT duration);
+        void FadePanning(const FLOAT to, const FLOAT duration);
     };
 
     class SaXAudio
@@ -203,6 +205,7 @@ namespace SaXAudio
 
         static DWORD m_channelMask;
         static UINT32 m_outputChannels;
+
     public:
         static OnFinishedCallback OnFinishedCallback;
 
@@ -213,35 +216,22 @@ namespace SaXAudio
         static void StopEngine();
         static void StartEngine();
 
-        static void PauseAll(FLOAT fade);
-        static void ResumeAll(FLOAT fade);
-        static void Protect(INT32 voiceID);
+        static void PauseAll(const FLOAT fade);
+        static void ResumeAll(const FLOAT fade);
+        static void Protect(const INT32 voiceID);
 
         static INT32 Add(AudioData* data);
-        static void Remove(INT32 bankID);
+        static void Remove(const INT32 bankID);
 
-        static BOOL StartDecodeOgg(INT32 bankID, const BYTE* buffer, UINT32 length);
+        static BOOL StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length);
 
-        static AudioVoice* CreateVoice(INT32 bankID);
-        static AudioVoice* GetVoice(INT32 voiceID);
+        static AudioVoice* CreateVoice(const INT32 bankID);
+        static AudioVoice* GetVoice(const INT32 voiceID);
+
     private:
-        static void DecodeOgg(INT32 bankID, stb_vorbis* vorbis);
-        static void RemoveVoice(INT32 voiceID);
+        static void DecodeOgg(const INT32 bankID, stb_vorbis* vorbis);
+        static void RemoveVoice(const INT32 voiceID);
     };
-
-    IXAudio2* SaXAudio::m_XAudio = nullptr;
-    IXAudio2MasteringVoice* SaXAudio::m_masteringVoice = nullptr;
-
-    unordered_map<INT32, AudioData*> SaXAudio::m_bank;
-    INT32 SaXAudio::m_bankCounter = 0;
-
-    unordered_map<INT32, AudioVoice*> SaXAudio::m_voices;
-    INT32 SaXAudio::m_voiceCounter = 0;
-
-    DWORD SaXAudio::m_channelMask = 0;
-    UINT32 SaXAudio::m_outputChannels = 0;
-
-    OnFinishedCallback SaXAudio::OnFinishedCallback = nullptr;
 }
 
 #ifdef LOGGING
@@ -255,12 +245,13 @@ mutex g_logMutex;
 ofstream g_log;
 INT64 g_startTime = GetTime();
 
-void Log(INT32 bankID, INT32 voiceId, string message)
+void Log(const INT32 bankID, const INT32 voiceId, const string& message)
 {
-    g_logMutex.lock();
+    lock_guard<mutex> lock(g_logMutex);
 
     if (!g_log.is_open())
         g_log.open("SaXAudio.log", fstream::trunc | fstream::out);
+
     INT64 millisec = GetTime() - g_startTime;
     INT64 seconds = millisec / 1000;
     INT32 minutes = (INT32)(seconds / 60);
@@ -270,6 +261,7 @@ void Log(INT32 bankID, INT32 voiceId, string message)
         << setw(2) << setfill('0') << minutes % 60 << ":"
         << setw(2) << setfill('0') << seconds % 60 << "."
         << setw(3) << setfill('0') << millisec % 1000;
+
     if (bankID > 0)
         g_log << " | " << setw(5) << setfill(' ') << left << "B" + to_string(bankID);
     else
@@ -282,8 +274,6 @@ void Log(INT32 bankID, INT32 voiceId, string message)
 
     g_log << message << endl;
     g_log.flush();
-
-    g_logMutex.unlock();
 }
 
 #else

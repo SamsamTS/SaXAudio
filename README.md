@@ -61,7 +61,7 @@ SetLooping(voiceID, true);
 success = Start(voiceID);
 if (!success)
 {
-    cout << "Failed to play the sound" << enfl;
+    cout << "Failed to play the sound" << endl;
     return 1;
 }
 

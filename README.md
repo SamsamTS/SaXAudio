@@ -25,6 +25,7 @@ It uses [stb_vorbis](https://github.com/nothings/stb/blob/master/stb_vorbis.c) a
 3. Create a voice with `INT32 voiceID = CreateVoice(bankID);` by providing the appropriate `bankID`. If you want the sound to play immediatly use `INT32 voiceID = CreateVoice(bankID, false);` instead. Returns `-1` if it fails.
 4. [Optional] Change settings of the voice before starting it. E.g. `SetVolume(voiceID, 0.5f);` or `SetLooping(voiceID, true);`
 5. Start playing the voice with `BOOL success = Start(voiceID);`. Returns `false` if it fails.
+6. Change a voice setting at any time during its playback. E.g. `SetSpeed(voiceID, 0.5f, 3.0f);` gradually slows down the playback to half over 3 seconds.
 Note: when a voice finishes playing, it gets deleted. A unique callback can be specified using `SetOnFinishedCallback(callback);` and will be triggered anytime a voice finishes playing with the `voiceID` as argument.
 
 ## Exemple

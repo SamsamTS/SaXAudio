@@ -1149,9 +1149,11 @@ namespace SaXAudio
 
     unordered_map<INT32, AudioData*> SaXAudio::m_bank;
     INT32 SaXAudio::m_bankCounter = 0;
+    mutex SaXAudio::m_bankMutex;
 
     unordered_map<INT32, AudioVoice*> SaXAudio::m_voices;
     INT32 SaXAudio::m_voiceCounter = 0;
+    mutex SaXAudio::m_voiceMutex;
 
     DWORD SaXAudio::m_channelMask = 0;
     UINT32 SaXAudio::m_outputChannels = 0;
@@ -1285,6 +1287,8 @@ namespace SaXAudio
 
     INT32 SaXAudio::Add(AudioData* data)
     {
+        lock_guard<mutex> lock(m_bankMutex);
+
         Log(m_bankCounter, -1, "[Add]");
 
         // TODO thread safety?
@@ -1294,6 +1298,8 @@ namespace SaXAudio
 
     void SaXAudio::Remove(const INT32 bankID)
     {
+        lock_guard<mutex> lock(m_bankMutex);
+
         Log(bankID, -1, "[Remove]");
 
         // Delete all voices using that bankID
@@ -1303,7 +1309,6 @@ namespace SaXAudio
                 RemoveVoice(it.first);
         }
 
-        // TODO thread safety?
         auto it = m_bank.find(bankID);
         if (it != m_bank.end())
         {
@@ -1357,6 +1362,8 @@ namespace SaXAudio
 
     AudioVoice* SaXAudio::CreateVoice(const INT32 bankID)
     {
+        lock_guard<mutex> lock(m_voiceMutex);
+
         AudioData* data = nullptr;
 
         auto it = m_bank.find(bankID);
@@ -1501,6 +1508,8 @@ namespace SaXAudio
 
     void SaXAudio::RemoveVoice(const INT32 voiceID)
     {
+        lock_guard<mutex> lock(m_voiceMutex);
+
         AudioVoice* voice = GetVoice(voiceID);
         if (voice)
         {

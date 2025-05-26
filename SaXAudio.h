@@ -41,6 +41,7 @@
 #include <unordered_map>
 #include <thread>
 #include <atomic>
+#include <mutex>
 using namespace std;
 
 #define STB_VORBIS_HEADER_ONLY
@@ -199,9 +200,11 @@ namespace SaXAudio
 
         static unordered_map<INT32, AudioData*> m_bank;
         static INT32 m_bankCounter;
+        static mutex m_bankMutex;
 
         static unordered_map<INT32, AudioVoice*> m_voices;
         static INT32 m_voiceCounter;
+        static mutex m_voiceMutex;
 
         static DWORD m_channelMask;
         static UINT32 m_outputChannels;
@@ -237,7 +240,6 @@ namespace SaXAudio
 #ifdef LOGGING
 
 #define GetTime() chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch()).count()
-#include <mutex>
 #include <chrono>
 #include <fstream>
 #include <iomanip>

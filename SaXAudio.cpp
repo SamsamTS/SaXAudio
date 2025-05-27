@@ -194,7 +194,7 @@ namespace SaXAudio
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice && voice->BankData && time >= 0)
         {
-            UINT32 sample = (UINT32)(time * voice->BankData->SampleRate);
+            UINT32 sample = (UINT32)(time * voice->BankData->sampleRate);
             return voice->Start(sample);
         }
         return false;
@@ -322,20 +322,23 @@ namespace SaXAudio
             if (looping == voice->Looping)
                 return;
 
-            voice->Looping = looping;
+            if (!voice->IsPlaying)
+            {
+                voice->Looping = looping;
+                return;
+            }
+
             if (looping)
             {
                 // Start looping
-                if (voice->IsPlaying)
-                {
-                    voice->ChangeLoopPoints(voice->LoopStart, voice->LoopEnd);
-                }
+                voice->Looping = true;
+                voice->ChangeLoopPoints(voice->LoopStart, voice->LoopEnd);
             }
-            else if (voice->IsPlaying && voice->SourceVoice)
+            else if (voice->SourceVoice)
             {
-                // Stop looping
-                // TODO: this should be done by sending a new source buffer so the audio can continue playing past LoopEnd
-                voice->SourceVoice->ExitLoop();
+                // This will stop the loop while continuing the playback from current position
+                voice->ChangeLoopPoints(0, 0);
+                voice->Looping = false;
             }
         }
     }
@@ -441,7 +444,7 @@ namespace SaXAudio
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
         if (voice && voice->BankData)
         {
-            return (FLOAT)voice->GetPosition() / voice->BankData->SampleRate;
+            return (FLOAT)voice->GetPosition() / voice->BankData->sampleRate;
         }
         return 0.0f;
     }
@@ -475,10 +478,10 @@ namespace SaXAudio
         Buffer.PlayBegin = atSample;
 
         // Set up the looping
-        if (Looping && LoopStart < (BankData->TotalSamples - 1))
+        if (Looping && LoopStart < (BankData->totalSamples - 1))
         {
             Buffer.LoopBegin = LoopStart;
-            Buffer.LoopLength = (LoopEnd > 0) ? LoopEnd - LoopStart : (BankData->TotalSamples - 1) - LoopStart;
+            Buffer.LoopLength = (LoopEnd > 0) ? LoopEnd - LoopStart : (BankData->totalSamples - 1) - LoopStart;
             Buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
             Log(BankID, VoiceID, "[Start] Loop: " + to_string(Buffer.LoopBegin) + " " + to_string(Buffer.LoopLength + Buffer.LoopBegin));
         }
@@ -497,28 +500,53 @@ namespace SaXAudio
 
         IsPlaying = true;
 
-        // Waiting for some decoded samples, don't want to read garbage
-        INT32 timeout = 500; // 500ms timeout
-        while (BankData->DecodedSamples == 0 && timeout > 0)
-        {
-            Sleep(10);
-            timeout -= 10;
-        }
-
         if (m_pauseStack > 0)
         {
             Log(BankID, VoiceID, "[Start] Voice paused");
             return IsPlaying;
         }
 
-        Log(BankID, VoiceID, "[Start] Starting");
-        if (timeout <= 0 || FAILED(SourceVoice->Start()))
+        if (BankData->decodedSamples == 0)
         {
-            Log(BankID, VoiceID, "[Start] FAILED starting" + (timeout <= 0) ? " - timeout" : "");
+            // Waiting for some decoded samples to not read garbage
+            thread wait(WaitForDecoding, this);
+            wait.detach();
+        }
+        else if (FAILED(SourceVoice->Start()))
+        {
+            Log(BankID, VoiceID, "[Start] FAILED starting");
             IsPlaying = false;
+            OnBufferEnd(nullptr);
         }
 
         return IsPlaying;
+    }
+
+    void AudioVoice::WaitForDecoding(AudioVoice* voice)
+    {
+        Log(voice->BankID, voice->VoiceID, "[Start] Waiting for decoded data");
+        unique_lock<mutex> lock(voice->BankData->decodingMutex);
+        if (voice->BankData->decodedSamples == 0)
+        {
+            if (!voice->BankData->decodingPerform.wait_for(lock, chrono::milliseconds(500), [voice] { return voice->BankData->decodedSamples > 0; }))
+            {
+                Log(voice->BankID, voice->VoiceID, "[Start] FAILED Waiting for decoded data timed out");
+                voice->IsPlaying = false;
+                voice->OnBufferEnd(nullptr);
+                return;
+
+            }
+        }
+        if (FAILED(voice->SourceVoice->Start()))
+        {
+            Log(voice->BankID, voice->VoiceID, "[Start] FAILED starting");
+            voice->IsPlaying = false;
+            voice->OnBufferEnd(nullptr);
+        }
+        else
+        {
+            Log(voice->BankID, voice->VoiceID, "[Start] Successfully waited for decoded data");
+        }
     }
 
     BOOL AudioVoice::Stop(const FLOAT fade)
@@ -623,7 +651,7 @@ namespace SaXAudio
         SourceVoice->GetState(&state);
 
         // We might not have started at from the beginning of the buffer so we need add PlayBegin
-        UINT64 position = state.SamplesPlayed - m_positionReset + Buffer.PlayBegin;
+        UINT64 position = state.SamplesPlayed - m_positionOffset + Buffer.PlayBegin;
         if (LoopEnd > LoopStart && position > LoopStart)
         {
             // We are somewhere in the loop
@@ -641,8 +669,40 @@ namespace SaXAudio
         if (!SourceVoice || !BankData) return;
         Log(BankID, VoiceID, "[ChangeLoopPoints] start: " + to_string(start) + " end: " + to_string(end));
 
-        if (end == 0)
-            end = BankData->TotalSamples - 1;
+        // When start and end equals 0 the loop will be stopped
+        if (end == 0 && start != 0)
+            end = BankData->totalSamples - 1;
+
+        UINT64 position = 0;
+        if (IsPlaying)
+        {
+            // We need to stop the voice to change the looping points
+            SourceVoice->Stop();
+
+            // We will calculate the current position in the buffer
+            // Unfortunately SamplesPlayed can be slightly inaccurate if the speed has been modified
+            // With loops this might add up
+            XAUDIO2_VOICE_STATE state;
+            SourceVoice->GetState(&state);
+
+            // Temporary flush the buffer
+            m_tempFlush = true;
+            SourceVoice->FlushSourceBuffers();
+
+            // We might not have started at from the beginning of the buffer so we need add PlayBegin
+            UINT64 position = state.SamplesPlayed - m_positionOffset + Buffer.PlayBegin;
+
+            if (Looping)
+            {
+                // Adjusting the offset because SamplesPlayed cannot be reset to 0 making further calculations incorrect
+                m_positionOffset = state.SamplesPlayed;
+                if (position > LoopStart)
+                {
+                    // We are somewhere in the loop
+                    position = LoopStart + ((position - LoopStart) % (LoopEnd - LoopStart));
+                }
+            }
+        }
 
         // Make sure LoopStart < LoopEnd
         if (start < end)
@@ -656,7 +716,7 @@ namespace SaXAudio
             LoopEnd = start;
         }
 
-        if (LoopStart == LoopEnd)
+        if (LoopStart == LoopEnd && LoopEnd != 0)
             LoopStart = LoopEnd - 1;
 
         if (!IsPlaying || !Looping)
@@ -664,37 +724,36 @@ namespace SaXAudio
             return;
         }
 
-        // We need to stop the voice to change the looping points
-        SourceVoice->Stop();
-
-        // We will calculate the current position in the buffer
-        // TODO: make sure calculation is accurate at different speeds
-        XAUDIO2_VOICE_STATE state;
-        SourceVoice->GetState(&state);
-        m_tempFlush = true;
-        SourceVoice->FlushSourceBuffers();
-
-        // We might not have started at from the beginning of the buffer so we need add PlayBegin
-        UINT64 position = state.SamplesPlayed - m_positionReset + Buffer.PlayBegin;
-        // Store the current samples played because SamplesPlayed cannot be reset to 0 making further calculations incorrect
-        m_positionReset = state.SamplesPlayed;
-        if (position > LoopStart)
-        {
-            // We are somewhere in the loop
-            position = LoopStart + ((position - LoopStart) % (LoopEnd - LoopStart));
-        }
-
-        // TODO: Check if we are past the new looping points? How does XAudio handle it and what's the desired behavior?
-
         // Updating the buffer
         Buffer.PlayBegin = (UINT32)position;
-        Buffer.LoopBegin = LoopStart;
-        Buffer.LoopLength = (LoopEnd > 0) ? LoopEnd - LoopStart : Buffer.PlayLength - LoopStart;
-        Buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
+
+        // Check if we are past the new looping points
+        if (position < LoopEnd)
+        {
+            Buffer.LoopBegin = LoopStart;
+            Buffer.LoopLength = LoopEnd - LoopStart;
+            Buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
+        }
+        else
+        {
+            // XAudio will refuse the buffer if PlayBegin is past the end of the loop,
+            // we will just play the sound from the position without a loop
+            Buffer.PlayLength = 0; // Play until the end
+            Buffer.LoopBegin = 0;
+            Buffer.LoopLength = 0;
+            Buffer.LoopCount = 0;
+        }
+
         if (SUCCEEDED(SourceVoice->SubmitSourceBuffer(&Buffer)))
         {
             // Resume playing
             SourceVoice->Start();
+        }
+        else
+        {
+            Log(BankID, VoiceID, "[ChangeLoopPoints] Failed to submit buffer");
+            m_tempFlush = false;
+            OnBufferEnd(nullptr);
         }
     }
 
@@ -717,7 +776,6 @@ namespace SaXAudio
 
     void AudioVoice::SetSpeed(FLOAT speed, const FLOAT fade)
     {
-        // TODO: would this mess up GetPosition calculation?
         if (!SourceVoice || !BankData || Speed == speed) return;
         Log(BankID, VoiceID, "[SetSpeed] to: " + to_string(speed) + " fade: " + to_string(fade));
 
@@ -783,7 +841,7 @@ namespace SaXAudio
     {
         if (!SourceVoice || !BankData) return;
 
-        UINT32 sourceChannels = BankData->Channels;
+        UINT32 sourceChannels = BankData->channels;
         UINT32 destChannels = SaXAudio::m_outputChannels;
         DWORD channelMask = SaXAudio::m_channelMask;
         if (sourceChannels > 2 || destChannels == 0)
@@ -950,7 +1008,7 @@ namespace SaXAudio
     void AudioVoice::Reset()
     {
         m_pauseStack = 0;
-        m_positionReset = 0;
+        m_positionOffset = 0;
         m_volumeTarget = 0;
         m_fadeInfo = {};
         m_fading = false;
@@ -971,7 +1029,6 @@ namespace SaXAudio
 
     inline FLOAT AudioVoice::GetRate(const FLOAT from, const FLOAT to, const FLOAT duration)
     {
-        Log(-1, -1, "[GetRate] from: " + to_string(from) + " to: " + to_string(to) + " duration: " + to_string(duration));
         return (to - from) / (duration * 100.0f);
     }
 
@@ -1000,14 +1057,11 @@ namespace SaXAudio
             return;
         }
 
-        Log(voice->BankID, voice->VoiceID, "[Fade] Fading start" +
+        Log(voice->BankID, voice->VoiceID, "[Fade] Fading" +
             (voice->m_fadeInfo.volumeRate != 0 ? " volumeRate: " + to_string(voice->m_fadeInfo.volumeRate) : "") +
             (voice->m_fadeInfo.speedRate != 0 ? " speedRate: " + to_string(voice->m_fadeInfo.speedRate) : "") +
             (voice->m_fadeInfo.panningRate != 0 ? " panningRate: " + to_string(voice->m_fadeInfo.panningRate) : ""));
 
-#ifdef LOGGING
-        auto now = GetTime();
-#endif
         do
         {
             // Volume
@@ -1047,21 +1101,21 @@ namespace SaXAudio
         if (!voice->m_fading)
             return;
 
-        if (voice->m_fadeInfo.speedRate != 0 && voice->m_fadeInfo.panningRate != 0)
+        if (voice->m_fadeInfo.volumeRate == 0 && voice->m_fadeInfo.speedRate == 0 && voice->m_fadeInfo.panningRate == 0)
         {
-            Log(voice->BankID, voice->VoiceID, "[Fade] Fading complete V" + to_string(voice->VoiceID) + " in " + to_string(GetTime() - now));
+            Log(voice->BankID, voice->VoiceID, "[Fade] Fading complete");
         }
 
         if (voice->m_fadeInfo.pause)
         {
-            Log(voice->BankID, voice->VoiceID, "[Fade] Pausing V" + to_string(voice->VoiceID));
+            Log(voice->BankID, voice->VoiceID, "[Fade] Pausing");
             voice->SourceVoice->Stop();
             voice->m_fadeInfo.pause = false;
         }
 
         if (voice->m_fadeInfo.stop && voice->m_fadeInfo.volumeRate == 0)
         {
-            Log(voice->BankID, voice->VoiceID, "[Fade] Stopping V" + to_string(voice->VoiceID));
+            Log(voice->BankID, voice->VoiceID, "[Fade] Stopping");
             voice->SourceVoice->Stop();
             voice->SourceVoice->FlushSourceBuffers();
             voice->m_fadeInfo.stop = false;
@@ -1128,7 +1182,7 @@ namespace SaXAudio
             m_tempFlush = false;
             return;
         }
-        Log(BankID, VoiceID, "[OnBufferEnd] V" + to_string(VoiceID));
+        Log(BankID, VoiceID, "[OnBufferEnd] Voice finished palying");
 
         IsPlaying = false;
         SaXAudio::RemoveVoice(VoiceID);
@@ -1162,6 +1216,8 @@ namespace SaXAudio
 
     BOOL SaXAudio::Init()
     {
+        StartLogging();
+
         HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
         switch (hr)
         {
@@ -1221,11 +1277,20 @@ namespace SaXAudio
 
     void SaXAudio::Release()
     {
+        lock_guard<mutex> lock(m_bankMutex);
+
         if (m_XAudio)
         {
             m_XAudio->Release();
         }
-        // TODO clean bank
+
+        for (auto it = m_bank.begin(); it != m_bank.end();)
+        {
+            INT32 bankID = it->first;
+            it++;
+            Remove(bankID);
+        }
+        StopLogging();
     }
 
     void SaXAudio::StopEngine()
@@ -1282,6 +1347,8 @@ namespace SaXAudio
             voice->IsProtected = true;
             if (voice->IsPlaying)
                 while (voice->Resume());
+
+            Log(voice->BankID, voiceID, "[Protect]");
         }
     }
 
@@ -1291,7 +1358,6 @@ namespace SaXAudio
 
         Log(m_bankCounter, -1, "[Add]");
 
-        // TODO thread safety?
         m_bank[m_bankCounter++] = data;
         return m_bankCounter - 1;
     }
@@ -1314,20 +1380,19 @@ namespace SaXAudio
         {
             AudioData* data = it->second;
             // Free the audio buffer
-            if (data->Buffer)
+            if (data->buffer)
             {
-                delete data->Buffer;
-                data->Buffer = nullptr;
+                delete data->buffer;
+                data->buffer = nullptr;
             }
 
             // If the decoding is still happening we don't want to delete the data yet
-            if (data->DecodedSamples == data->TotalSamples)
+            if (data->decodedSamples == data->totalSamples)
             {
                 delete data;
                 m_bank.erase(bankID);
             }
         }
-
     }
 
     BOOL SaXAudio::StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length)
@@ -1346,12 +1411,12 @@ namespace SaXAudio
         {
             // Get file info
             stb_vorbis_info info = stb_vorbis_get_info(vorbis);
-            data->Channels = info.channels;
-            data->SampleRate = info.sample_rate;
+            data->channels = info.channels;
+            data->sampleRate = info.sample_rate;
 
             // Get total samples count and allocate the buffer
-            data->TotalSamples = stb_vorbis_stream_length_in_samples(vorbis);
-            data->Buffer = new FLOAT[data->TotalSamples * data->Channels];
+            data->totalSamples = stb_vorbis_stream_length_in_samples(vorbis);
+            data->buffer = new FLOAT[data->totalSamples * data->channels];
 
             thread decode(DecodeOgg, bankID, vorbis);
             decode.detach();
@@ -1378,8 +1443,8 @@ namespace SaXAudio
         // Set up audio format
         WAVEFORMATEX wfx = { 0 };
         wfx.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;  // 32-bit float format
-        wfx.nChannels = static_cast<WORD>(data->Channels);
-        wfx.nSamplesPerSec = static_cast<DWORD>(data->SampleRate);
+        wfx.nChannels = static_cast<WORD>(data->channels);
+        wfx.nSamplesPerSec = static_cast<DWORD>(data->sampleRate);
         wfx.wBitsPerSample = 32;  // 32-bit float
         wfx.nBlockAlign = wfx.nChannels * wfx.wBitsPerSample / 8;
         wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign;
@@ -1412,8 +1477,8 @@ namespace SaXAudio
 
         // Submit audio buffer
         voice->Buffer = { 0 };
-        voice->Buffer.AudioBytes = static_cast<UINT32>(sizeof(float) * data->TotalSamples * data->Channels);
-        voice->Buffer.pAudioData = reinterpret_cast<const BYTE*>(data->Buffer);
+        voice->Buffer.AudioBytes = static_cast<UINT32>(sizeof(float) * data->totalSamples * data->channels);
+        voice->Buffer.pAudioData = reinterpret_cast<const BYTE*>(data->buffer);
         voice->Buffer.Flags = XAUDIO2_END_OF_STREAM;
 
         voice->BankID = bankID;
@@ -1424,7 +1489,7 @@ namespace SaXAudio
 
         m_voices[voice->VoiceID] = voice;
 
-        Log(bankID, voice->VoiceID, "[CreateVoice] Created voice");
+        Log(bankID, voice->VoiceID, "[CreateVoice]");
 
         return voice;
     }
@@ -1445,7 +1510,7 @@ namespace SaXAudio
 
         UINT32 samplesTotal = 0;
         UINT32 samplesDecoded = 0;
-        UINT32 bufferSize = 4096;  // Read 4096 samples at a time
+        UINT32 bufferSize = 4096;
 
         auto it = m_bank.find(bankID);
         if (it != m_bank.end())
@@ -1453,51 +1518,58 @@ namespace SaXAudio
             AudioData* data = it->second;
             if (data)
             {
-                data->DecodedSamples = 0;
-                samplesTotal = data->TotalSamples;
+                data->decodedSamples = 0;
+                samplesTotal = data->totalSamples;
             }
         }
-
-        Log(bankID, -1, "[DecodeOgg] Decoding");
 
         while (samplesTotal - samplesDecoded > 0)
         {
             if (bufferSize > samplesTotal)
                 bufferSize = samplesTotal;
 
+            lock_guard<mutex> lock(m_bankMutex);
+
             AudioData* data = nullptr;
             it = m_bank.find(bankID);
             if (it != m_bank.end())
                 data = it->second;
 
-            if (!data)
+            if (data)
             {
-                // Something is wrong
-                samplesTotal = 0;
-            }
-            else if (data->Buffer)
-            {
-                // Read samples
-                FLOAT* pBuffer = &data->Buffer[data->DecodedSamples * data->Channels];
-                UINT32 decoded = stb_vorbis_get_samples_float_interleaved(vorbis, data->Channels, pBuffer, bufferSize * data->Channels);
-                samplesDecoded += decoded;
-                data->DecodedSamples = samplesDecoded;
-
-                if (decoded == 0)
+                if (data->buffer)
                 {
-                    // Less samples decoded than expected
-                    // we update the total samples to match
-                    data->TotalSamples = samplesDecoded;
+                    lock_guard<mutex> lock(data->decodingMutex);
+
+                    // Read samples
+                    FLOAT* pBuffer = &data->buffer[data->decodedSamples * data->channels];
+                    UINT32 decoded = stb_vorbis_get_samples_float_interleaved(vorbis, data->channels, pBuffer, bufferSize * data->channels);
+                    samplesDecoded += decoded;
+                    data->decodedSamples = samplesDecoded;
+
+                    if (decoded == 0)
+                    {
+                        // Less samples decoded than expected
+                        // we update the total samples to match
+                        data->totalSamples = samplesDecoded;
+                    }
+
+                    data->decodingPerform.notify_one();
+                }
+                else
+                {
+                    // Removed from the bank while still decoding
+                    delete data;
+                    break;
                 }
             }
             else
             {
-                // Removed from the bank while still decoding
-                delete data;
-                m_bank[bankID] = nullptr;
-                samplesDecoded = 0;
+                // Something is wrong
+                samplesTotal = 0;
+                Log(bankID, -1, "[DecodeOgg] Data is missing");
+                break;
             }
-
         }
 
         // Close the Vorbis file

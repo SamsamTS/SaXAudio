@@ -42,6 +42,8 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <condition_variable>
+#include <chrono>
 using namespace std;
 
 #define STB_VORBIS_HEADER_ONLY
@@ -96,14 +98,16 @@ namespace SaXAudio
 
     struct AudioData
     {
-        FLOAT* Buffer = nullptr;
-        UINT32 Size = 0;
+        FLOAT* buffer = nullptr;
+        UINT32 size = 0;
 
-        UINT32 Channels = 0;
-        UINT32 SampleRate = 0;
-        UINT32 TotalSamples = 0;
+        UINT32 channels = 0;
+        UINT32 sampleRate = 0;
+        UINT32 totalSamples = 0;
 
-        atomic<UINT32> DecodedSamples = 0;
+        atomic<UINT32> decodedSamples = 0;
+        mutex decodingMutex;
+        condition_variable decodingPerform;
     };
 
     class AudioVoice : public IXAudio2VoiceCallback
@@ -129,7 +133,7 @@ namespace SaXAudio
         atomic<BOOL> m_fading = false;
 
         atomic<UINT32> m_pauseStack = 0;
-        UINT64 m_positionReset = 0;
+        INT64 m_positionOffset = 0;
         FLOAT m_volumeTarget = 0;
 
         atomic<BOOL> m_tempFlush = false;
@@ -183,6 +187,7 @@ namespace SaXAudio
         void __stdcall OnVoiceError(void*, HRESULT) override {}
 
     private:
+        static void WaitForDecoding(AudioVoice* voice);
         static FLOAT GetRate(const FLOAT from, const FLOAT to, const FLOAT duration);
         static void Fade(AudioVoice* voice);
 
@@ -239,45 +244,128 @@ namespace SaXAudio
 
 #ifdef LOGGING
 
-#define GetTime() chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch()).count()
-#include <chrono>
 #include <fstream>
 #include <iomanip>
-mutex g_logMutex;
-ofstream g_log;
-INT64 g_startTime = GetTime();
+#include <queue>
+
+#define GetTime() chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch()).count()
+
+struct LogEntry
+{
+    INT64 timestamp;
+    INT32 bankID;
+    INT32 voiceID;
+    string message;
+};
+
+struct LogData
+{
+    atomic<bool> logging = false;
+
+    mutex mutex;
+    condition_variable condition;
+    thread workThread;
+
+    queue<LogEntry> queue;
+
+    ofstream file;
+    INT64 startTime = GetTime();
+};
+
+static LogData g_logData;
+
+void LogWorker()
+{
+    g_logData.file.open("SaXAudio.log", ios::trunc | ios::out);
+
+    vector<LogEntry> batch;
+    batch.reserve(32);
+
+    while (true)
+    {
+        // Wait for entries
+        unique_lock<mutex> lock(g_logData.mutex);
+        g_logData.condition.wait(lock, [] { return !g_logData.queue.empty() || !g_logData.logging; });
+
+        // Move entries to local batch
+        while (!g_logData.queue.empty())
+        {
+            batch.push_back(move(g_logData.queue.front()));
+            g_logData.queue.pop();
+        }
+        lock.unlock();
+
+        // Process batch
+        for (const auto& entry : batch)
+        {
+            INT64 millisec = entry.timestamp;
+            INT64 seconds = millisec / 1000;
+            INT32 minutes = (INT32)(seconds / 60);
+            INT32 hours = minutes / 60;
+
+            g_logData.file << hours << ":"
+                << setw(2) << setfill('0') << minutes % 60 << ":"
+                << setw(2) << setfill('0') << seconds % 60 << "."
+                << setw(3) << setfill('0') << millisec % 1000;
+
+            if (entry.bankID >= 0)
+                g_logData.file << " | " << setw(5) << setfill(' ') << left << ("B" + to_string(entry.bankID));
+            else
+                g_logData.file << " |      ";
+
+            if (entry.voiceID >= 0)
+                g_logData.file << " | " << setw(6) << setfill(' ') << left << ("V" + to_string(entry.voiceID)) << " | ";
+            else
+                g_logData.file << " |        | ";
+
+            g_logData.file << entry.message << endl;
+        }
+
+        batch.clear();
+        g_logData.file.flush();
+
+        if (!g_logData.logging)
+            break;
+    }
+
+    g_logData.file.close();
+}
+
+void StartLogging()
+{
+    if (!g_logData.workThread.joinable())
+    {
+        g_logData.logging = true;
+        g_logData.workThread = thread(LogWorker);
+    }
+}
+
+void StopLogging()
+{
+    g_logData.logging = false;
+    g_logData.condition.notify_one();
+
+    if (g_logData.workThread.joinable())
+        g_logData.workThread.join();
+}
 
 void Log(const INT32 bankID, const INT32 voiceId, const string& message)
 {
-    lock_guard<mutex> lock(g_logMutex);
+    if (!g_logData.logging)
+        return;
 
-    if (!g_log.is_open())
-        g_log.open("SaXAudio.log", fstream::trunc | fstream::out);
+    INT64 timestamp = GetTime() - g_logData.startTime;
 
-    INT64 millisec = GetTime() - g_startTime;
-    INT64 seconds = millisec / 1000;
-    INT32 minutes = (INT32)(seconds / 60);
-    INT32 hours = minutes / 60;
+    {
+        lock_guard<mutex> lock(g_logData.mutex);
+        g_logData.queue.push({ timestamp, bankID, voiceId, message });
+    }
 
-    g_log << hours << ":"
-        << setw(2) << setfill('0') << minutes % 60 << ":"
-        << setw(2) << setfill('0') << seconds % 60 << "."
-        << setw(3) << setfill('0') << millisec % 1000;
-
-    if (bankID > 0)
-        g_log << " | " << setw(5) << setfill(' ') << left << "B" + to_string(bankID);
-    else
-        g_log << " |      ";
-
-    if (voiceId > 0)
-        g_log << " | " << setw(6) << setfill(' ') << left << "V" + to_string(voiceId) << " | ";
-    else
-        g_log << " |        | ";
-
-    g_log << message << endl;
-    g_log.flush();
+    g_logData.condition.notify_one();
 }
 
 #else
 #define Log(bankID, voiceId, message)
+#define StartLogging()
+#define StopLogging()
 #endif // LOGGING

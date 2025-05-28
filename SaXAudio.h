@@ -94,6 +94,9 @@ namespace SaXAudio
     EXPORT UINT32 GetPositionSample(const INT32 voiceID);
     EXPORT FLOAT GetPositionTime(const INT32 voiceID);
 
+    EXPORT UINT32 GetTotalSample(const INT32 voiceID);
+    EXPORT FLOAT GetTotalTime(const INT32 voiceID);
+
     EXPORT void SetOnFinishedCallback(const OnFinishedCallback callback);
 
     struct AudioData
@@ -136,7 +139,7 @@ namespace SaXAudio
         INT64 m_positionOffset = 0;
         FLOAT m_volumeTarget = 0;
 
-        atomic<BOOL> m_tempFlush = false;
+        atomic<UINT32> m_tempFlush = 0;
 
     public:
         AudioData* BankData = nullptr;
@@ -157,7 +160,7 @@ namespace SaXAudio
         atomic<BOOL> IsPlaying = false;
         BOOL IsProtected = false;
 
-        BOOL Start(const UINT32 atSample = 0);
+        BOOL Start(const UINT32 atSample = 0, BOOL flush = true);
         BOOL Stop(const FLOAT fade = 0.0f);
 
         UINT32 Pause(const FLOAT fade = 0.0f);

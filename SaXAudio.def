@@ -37,5 +37,8 @@ EXPORTS
 	
 	GetPositionSample
 	GetPositionTime
+
+    GetTotalSample
+    GetTotalTime
 	
 	SetOnFinishedCallback

@@ -450,6 +450,36 @@ namespace SaXAudio
     }
 
     /// <summary>
+    /// Gets the total amount of samples of the voice
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns></returns>
+    EXPORT UINT32 GetTotalSample(const INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice && voice->BankData)
+        {
+            return voice->BankData->totalSamples;
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Gets the total time, in seconds, of the voice
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns></returns>
+    EXPORT FLOAT GetTotalTime(const INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (voice && voice->BankData)
+        {
+            return (FLOAT)voice->BankData->totalSamples / voice->BankData->sampleRate;
+        }
+        return 0.0f;
+    }
+
+    /// <summary>
     /// Sets a callback for when the voice finished playing
     /// </summary>
     /// <param name="callback"></param>
@@ -463,38 +493,51 @@ namespace SaXAudio
     // AudioVoice class implementation
     // -------------------------------------------------------
 
-    BOOL AudioVoice::Start(const UINT32 atSample)
+    BOOL AudioVoice::Start(const UINT32 atSample, BOOL flush)
     {
         if (!SourceVoice || !BankData) return false;
-        Log(BankID, VoiceID, "[Start] at: " + to_string(atSample));
+        Log(BankID, VoiceID, "[Start] at: " + to_string(atSample) + (Looping ? " loop start: " + to_string(LoopStart) + " loop end: " + to_string(LoopEnd) : ""));
 
         if (IsPlaying)
         {
-            m_tempFlush = true;
-            SourceVoice->Stop();
-            SourceVoice->FlushSourceBuffers();
+            if (flush)
+            {
+                m_tempFlush++;
+                SourceVoice->Stop();
+                SourceVoice->FlushSourceBuffers();
+            }
+
+            // Update position offset
+            XAUDIO2_VOICE_STATE state;
+            SourceVoice->GetState(&state);
+            m_positionOffset = state.SamplesPlayed - atSample;
         }
 
+        // Set up buffer
         Buffer.PlayBegin = atSample;
+        Buffer.PlayLength = 0; // Plays until the end
 
-        // Set up the looping
-        if (Looping && LoopStart < (BankData->totalSamples - 1))
+        // Check if we are past the new looping points
+        if (Looping && atSample < LoopEnd)
         {
             Buffer.LoopBegin = LoopStart;
-            Buffer.LoopLength = (LoopEnd > 0) ? LoopEnd - LoopStart : (BankData->totalSamples - 1) - LoopStart;
+            Buffer.LoopLength = LoopEnd - LoopStart;
             Buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
-            Log(BankID, VoiceID, "[Start] Loop: " + to_string(Buffer.LoopBegin) + " " + to_string(Buffer.LoopLength + Buffer.LoopBegin));
+        }
+        else
+        {
+            // XAudio will refuse the buffer if PlayBegin is past the end of the loop,
+            // we will just play the sound from the position without a loop
+            Buffer.LoopBegin = 0;
+            Buffer.LoopLength = 0;
+            Buffer.LoopCount = 0;
         }
 
         // Submitting the buffer
         if (FAILED(SourceVoice->SubmitSourceBuffer(&Buffer)))
         {
             Log(BankID, VoiceID, "[Start] Failed to submit buffer");
-            if (IsPlaying)
-            {
-                m_tempFlush = false;
-                OnBufferEnd(nullptr);
-            }
+            SaXAudio::RemoveVoice(VoiceID);
             return false;
         }
 
@@ -506,7 +549,7 @@ namespace SaXAudio
             return IsPlaying;
         }
 
-        if (BankData->decodedSamples == 0)
+        if (BankData->decodedSamples <= atSample)
         {
             // Waiting for some decoded samples to not read garbage
             thread wait(WaitForDecoding, this);
@@ -515,10 +558,9 @@ namespace SaXAudio
         else if (FAILED(SourceVoice->Start()))
         {
             Log(BankID, VoiceID, "[Start] FAILED starting");
-            IsPlaying = false;
-            OnBufferEnd(nullptr);
+            SaXAudio::RemoveVoice(VoiceID);
+            return false;
         }
-
         return IsPlaying;
     }
 
@@ -528,11 +570,10 @@ namespace SaXAudio
         unique_lock<mutex> lock(voice->BankData->decodingMutex);
         if (voice->BankData->decodedSamples == 0)
         {
-            if (!voice->BankData->decodingPerform.wait_for(lock, chrono::milliseconds(500), [voice] { return voice->BankData->decodedSamples > 0; }))
+            if (!voice->BankData->decodingPerform.wait_for(lock, chrono::milliseconds(500), [voice] { return voice->BankData->decodedSamples > voice->Buffer.PlayBegin; }))
             {
                 Log(voice->BankID, voice->VoiceID, "[Start] FAILED Waiting for decoded data timed out");
-                voice->IsPlaying = false;
-                voice->OnBufferEnd(nullptr);
+                SaXAudio::RemoveVoice(voice->VoiceID);
                 return;
 
             }
@@ -540,11 +581,11 @@ namespace SaXAudio
         if (FAILED(voice->SourceVoice->Start()))
         {
             Log(voice->BankID, voice->VoiceID, "[Start] FAILED starting");
-            voice->IsPlaying = false;
-            voice->OnBufferEnd(nullptr);
+            SaXAudio::RemoveVoice(voice->VoiceID);
         }
         else
         {
+            voice->m_tempFlush = false;
             Log(voice->BankID, voice->VoiceID, "[Start] Successfully waited for decoded data");
         }
     }
@@ -570,6 +611,7 @@ namespace SaXAudio
             m_fading = false;
             SourceVoice->Stop();
             SourceVoice->FlushSourceBuffers();
+            Log(BankID, VoiceID, "[Stop] Flush");
         }
 
         return true;
@@ -652,7 +694,7 @@ namespace SaXAudio
 
         // We might not have started at from the beginning of the buffer so we need add PlayBegin
         UINT64 position = state.SamplesPlayed - m_positionOffset + Buffer.PlayBegin;
-        if (LoopEnd > LoopStart && position > LoopStart)
+        if (Looping && position > LoopStart)
         {
             // We are somewhere in the loop
             position = LoopStart + ((position - LoopStart) % (LoopEnd - LoopStart));
@@ -673,6 +715,9 @@ namespace SaXAudio
         if (end == 0 && start != 0)
             end = BankData->totalSamples - 1;
 
+        if (LoopStart == start && LoopEnd == end)
+            return;
+
         UINT64 position = 0;
         if (IsPlaying)
         {
@@ -681,21 +726,18 @@ namespace SaXAudio
 
             // We will calculate the current position in the buffer
             // Unfortunately SamplesPlayed can be slightly inaccurate if the speed has been modified
-            // With loops this might add up
+            // With loops this may add up
             XAUDIO2_VOICE_STATE state;
             SourceVoice->GetState(&state);
 
             // Temporary flush the buffer
-            m_tempFlush = true;
+            m_tempFlush++;
             SourceVoice->FlushSourceBuffers();
 
             // We might not have started at from the beginning of the buffer so we need add PlayBegin
-            UINT64 position = state.SamplesPlayed - m_positionOffset + Buffer.PlayBegin;
-
+            position = state.SamplesPlayed - m_positionOffset + Buffer.PlayBegin;
             if (Looping)
             {
-                // Adjusting the offset because SamplesPlayed cannot be reset to 0 making further calculations incorrect
-                m_positionOffset = state.SamplesPlayed;
                 if (position > LoopStart)
                 {
                     // We are somewhere in the loop
@@ -719,42 +761,11 @@ namespace SaXAudio
         if (LoopStart == LoopEnd && LoopEnd != 0)
             LoopStart = LoopEnd - 1;
 
-        if (!IsPlaying || !Looping)
-        {
+        if (!IsPlaying)
             return;
-        }
 
-        // Updating the buffer
-        Buffer.PlayBegin = (UINT32)position;
-
-        // Check if we are past the new looping points
-        if (position < LoopEnd)
-        {
-            Buffer.LoopBegin = LoopStart;
-            Buffer.LoopLength = LoopEnd - LoopStart;
-            Buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
-        }
-        else
-        {
-            // XAudio will refuse the buffer if PlayBegin is past the end of the loop,
-            // we will just play the sound from the position without a loop
-            Buffer.PlayLength = 0; // Play until the end
-            Buffer.LoopBegin = 0;
-            Buffer.LoopLength = 0;
-            Buffer.LoopCount = 0;
-        }
-
-        if (SUCCEEDED(SourceVoice->SubmitSourceBuffer(&Buffer)))
-        {
-            // Resume playing
-            SourceVoice->Start();
-        }
-        else
-        {
-            Log(BankID, VoiceID, "[ChangeLoopPoints] Failed to submit buffer");
-            m_tempFlush = false;
-            OnBufferEnd(nullptr);
-        }
+        // Resume playing
+        Start((UINT32)position, false);
     }
 
     void AudioVoice::SetVolume(const FLOAT volume, const FLOAT fade)
@@ -1062,8 +1073,16 @@ namespace SaXAudio
             (voice->m_fadeInfo.speedRate != 0 ? " speedRate: " + to_string(voice->m_fadeInfo.speedRate) : "") +
             (voice->m_fadeInfo.panningRate != 0 ? " panningRate: " + to_string(voice->m_fadeInfo.panningRate) : ""));
 
+        auto start = chrono::steady_clock::now();
+        chrono::milliseconds interval = chrono::milliseconds(10);
+        UINT64 count = 0;
+
         do
         {
+            count++;
+            auto target_time = start + (interval * count);
+            this_thread::sleep_until(target_time);
+
             // Volume
             if (voice->m_fadeInfo.volumeRate != 0)
             {
@@ -1090,8 +1109,6 @@ namespace SaXAudio
                     voice->m_fadeInfo.panningRate = 0;
                 voice->SetOutputMatrix(voice->m_fadeInfo.panning);
             }
-
-            Sleep(10);
         }
         while (voice->m_fading && voice->SourceVoice && voice->BankData && (
             voice->m_fadeInfo.volumeRate != 0 ||
@@ -1177,12 +1194,13 @@ namespace SaXAudio
     void __stdcall AudioVoice::OnBufferEnd(void* pBufferContext)
     {
         // We don't want to do anything when temporary flushing the buffer
-        if (m_tempFlush)
+        if (m_tempFlush > 0)
         {
-            m_tempFlush = false;
+            Log(BankID, VoiceID, "[OnBufferEnd] Flush reset");
+            m_tempFlush--;
             return;
         }
-        Log(BankID, VoiceID, "[OnBufferEnd] Voice finished palying");
+        Log(BankID, VoiceID, "[OnBufferEnd] Voice finished playing");
 
         IsPlaying = false;
         SaXAudio::RemoveVoice(VoiceID);

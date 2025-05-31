@@ -1578,6 +1578,7 @@ namespace SaXAudio
                 {
                     // Removed from the bank while still decoding
                     delete data;
+                    m_bank.erase(bankID);
                     break;
                 }
             }

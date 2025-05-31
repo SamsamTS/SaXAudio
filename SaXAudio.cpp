@@ -609,9 +609,9 @@ namespace SaXAudio
             m_fadeInfo.pause = false;
             m_fadeInfo.stop = false;
             m_fading = false;
+            m_tempFlush = 0;
             SourceVoice->Stop();
             SourceVoice->FlushSourceBuffers();
-            Log(BankID, VoiceID, "[Stop] Flush");
         }
 
         return true;
@@ -1133,9 +1133,7 @@ namespace SaXAudio
         if (voice->m_fadeInfo.stop && voice->m_fadeInfo.volumeRate == 0)
         {
             Log(voice->BankID, voice->VoiceID, "[Fade] Stopping");
-            voice->SourceVoice->Stop();
-            voice->SourceVoice->FlushSourceBuffers();
-            voice->m_fadeInfo.stop = false;
+            voice->Stop();
         }
         voice->m_fading = false;
     }
@@ -1607,8 +1605,7 @@ namespace SaXAudio
             if (voice->IsPlaying)
             {
                 Log(voice->BankID, voiceID, "[RemoveVoice] Stopping voice");
-                voice->SourceVoice->Stop();
-                voice->SourceVoice->FlushSourceBuffers();
+                voice->Stop();
                 // RemoveVoice will be called again by OnBufferEnd
             }
             else

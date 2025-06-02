@@ -38,6 +38,7 @@
 #include <winnt.h>
 #include <xaudio2.h>
 #include <xaudio2fx.h>
+#include <xapofx.h>
 #include <unordered_map>
 #include <thread>
 #include <atomic>
@@ -53,6 +54,7 @@ using namespace std;
 
 namespace SaXAudio
 {
+    typedef void (*OnDecodedCallback)(INT32 bankID);
     typedef void (*OnFinishedCallback)(INT32 voiceID);
 
     EXPORT BOOL Create();
@@ -65,11 +67,14 @@ namespace SaXAudio
     EXPORT void ResumeAll(const FLOAT fade = 0.1f);
     EXPORT void Protect(const INT32 voiceID);
 
-    EXPORT INT32 BankAddOgg(const BYTE* buffer, const UINT32 length);
+    EXPORT INT32 BankAddOgg(const BYTE* buffer, const UINT32 length, const OnDecodedCallback callback = nullptr);
     EXPORT void BankRemove(const INT32 bankID);
 
-    EXPORT INT32 CreateVoice(const INT32 bankID, const BOOL paused = true);
+    EXPORT INT32 CreateVoice(const INT32 bankID, const INT32 busID, const BOOL paused = true);
     EXPORT BOOL VoiceExist(const INT32 voiceID);
+
+    EXPORT INT32 CreateBus();
+    EXPORT void RemoveBus(INT32 busID);
 
     EXPORT BOOL Start(const INT32 voiceID);
     EXPORT BOOL StartAtSample(const INT32 voiceID, const UINT32 sample);
@@ -91,6 +96,16 @@ namespace SaXAudio
     EXPORT FLOAT GetPanning(const INT32 voiceID);
     EXPORT BOOL GetLooping(const INT32 voiceID);
 
+    EXPORT void SetReverb(const INT32 voiceID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams);
+    EXPORT void SetReverbBus(const INT32 busID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams);
+    EXPORT void RemoveReverb(const INT32 voiceID);
+    EXPORT void RemoveReverbBus(const INT32 busID);
+
+    EXPORT void SetEq(const INT32 voiceID, const FXEQ_PARAMETERS reverbParams);
+    EXPORT void SetEqBus(const INT32 busID, const FXEQ_PARAMETERS reverbParams);
+    EXPORT void RemoveEq(const INT32 voiceID);
+    EXPORT void RemoveEqBus(const INT32 busID);
+
     EXPORT UINT32 GetPositionSample(const INT32 voiceID);
     EXPORT FLOAT GetPositionTime(const INT32 voiceID);
 
@@ -99,10 +114,25 @@ namespace SaXAudio
 
     EXPORT void SetOnFinishedCallback(const OnFinishedCallback callback);
 
+
+    struct EffectData
+    {
+        XAUDIO2_EFFECT_CHAIN effectChain = { 0 };
+        XAUDIO2_EFFECT_DESCRIPTOR descriptors[2] = { 0 };
+        XAUDIO2FX_REVERB_PARAMETERS reverb = { 0 };
+        FXEQ_PARAMETERS eq = { 0 };
+    };
+
+    struct BusData : EffectData
+    {
+        IXAudio2SubmixVoice* voice = nullptr;
+    };
+
     struct AudioData
     {
         FLOAT* buffer = nullptr;
         UINT32 size = 0;
+        OnDecodedCallback onDecodedCallback = nullptr;
 
         UINT32 channels = 0;
         UINT32 sampleRate = 0;
@@ -152,6 +182,8 @@ namespace SaXAudio
         FLOAT Volume = 1.0f;
         FLOAT Speed = 1.0f;
         FLOAT Panning = 0.0f;
+
+        EffectData EffectData;
 
         UINT32 LoopStart = 0;
         UINT32 LoopEnd = 0;
@@ -214,8 +246,12 @@ namespace SaXAudio
         static INT32 m_voiceCounter;
         static mutex m_voiceMutex;
 
+        static unordered_map<INT32, BusData> m_buses;
+        static INT32 m_busCounter;
+        static mutex m_busMutex;
+
         static DWORD m_channelMask;
-        static UINT32 m_outputChannels;
+        static XAUDIO2_VOICE_DETAILS m_masterDetails;
 
     public:
         static OnFinishedCallback OnFinishedCallback;
@@ -234,14 +270,25 @@ namespace SaXAudio
         static INT32 Add(AudioData* data);
         static void Remove(const INT32 bankID);
 
+        static INT32 AddBus();
+        static void RemoveBus(const INT32 busID);
+        static BusData* GetBus(const INT32 busID);
+
         static BOOL StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length);
 
-        static AudioVoice* CreateVoice(const INT32 bankID);
+        static AudioVoice* CreateVoice(const INT32 bankID, const INT32 busID = -1);
         static AudioVoice* GetVoice(const INT32 voiceID);
+
+        static void SetReverb(IXAudio2Voice* voice, EffectData* data);
+        static void RemoveReverb(IXAudio2Voice* voice, EffectData* data);
+
+        static void SetEq(IXAudio2Voice* voice, EffectData* data);
+        static void RemoveEq(IXAudio2Voice* voice, EffectData* data);
 
     private:
         static void DecodeOgg(const INT32 bankID, stb_vorbis* vorbis);
         static void RemoveVoice(const INT32 voiceID);
+        static void CreateEffectChain(IXAudio2Voice* voice, EffectData* data);
     };
 }
 

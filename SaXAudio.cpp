@@ -109,9 +109,10 @@ namespace SaXAudio
     /// <param name="buffer">The ogg data</param>
     /// <param name="length">The length in bytes of the data</param>
     /// <returns>unique bankID for that audio data</returns>
-    EXPORT INT32 BankAddOgg(const BYTE* buffer, const UINT32 length)
+    EXPORT INT32 BankAddOgg(const BYTE* buffer, const UINT32 length, const OnDecodedCallback callback)
     {
         AudioData* data = new AudioData;
+        data->onDecodedCallback = callback;
         INT32 bankID = SaXAudio::Add(data);
         if (bankID >= 0)
             SaXAudio::StartDecodeOgg(bankID, buffer, length);
@@ -133,9 +134,9 @@ namespace SaXAudio
     /// <param name="bankID">The bankID of the data to play</param>
     /// <param name="paused">when false, the audio will start playing immediately</param>
     /// <returns>unique voiceID</returns>
-    EXPORT INT32 CreateVoice(const INT32 bankID, const BOOL paused)
+    EXPORT INT32 CreateVoice(const INT32 bankID, const INT32 busID, const BOOL paused)
     {
-        AudioVoice* voice = SaXAudio::CreateVoice(bankID);
+        AudioVoice* voice = SaXAudio::CreateVoice(bankID, busID);
 
         if (!voice)
             return -1;
@@ -154,6 +155,24 @@ namespace SaXAudio
     EXPORT BOOL VoiceExist(const INT32 voiceID)
     {
         return SaXAudio::GetVoice(voiceID) != nullptr;
+    }
+
+    /// <summary>
+    /// Create a bus
+    /// </summary>
+    /// <returns>unique busID</returns>
+    EXPORT INT32 CreateBus()
+    {
+        return SaXAudio::AddBus();
+    }
+
+    /// <summary>
+    /// Removes a bus
+    /// </summary>
+    /// <param name="busID"></param>
+    EXPORT void RemoveBus(INT32 busID)
+    {
+        SaXAudio::RemoveBus(busID);
     }
 
     /// <summary>
@@ -417,6 +436,70 @@ namespace SaXAudio
             return voice->Looping;
         }
         return false;
+    }
+
+    EXPORT void SetReverb(const INT32 voiceID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (!voice || !voice->SourceVoice) return;
+
+        voice->EffectData.reverb = reverbParams;
+        SaXAudio::SetReverb(voice->SourceVoice, &voice->EffectData);
+    }
+
+    EXPORT void SetReverbBus(const INT32 busID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams)
+    {
+        BusData* bus = SaXAudio::GetBus(busID);
+        if (!bus || !bus->voice) return;
+
+        bus->reverb = reverbParams;
+        SaXAudio::SetReverb(bus->voice, bus);
+    }
+
+    EXPORT void RemoveReverb(const INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (!voice || !voice->SourceVoice) return;
+        SaXAudio::RemoveReverb(voice->SourceVoice, &voice->EffectData);
+    }
+
+    EXPORT void RemoveReverbBus(const INT32 busID)
+    {
+        BusData* bus = SaXAudio::GetBus(busID);
+        if (!bus || !bus->voice) return;
+        SaXAudio::RemoveReverb(bus->voice, bus);
+    }
+
+    EXPORT void SetEq(const INT32 voiceID, const FXEQ_PARAMETERS eqParams)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (!voice || !voice->SourceVoice) return;
+
+        voice->EffectData.eq = eqParams;
+        SaXAudio::SetEq(voice->SourceVoice, &voice->EffectData);
+    }
+
+    EXPORT void SetEqBus(const INT32 busID, const FXEQ_PARAMETERS eqParams)
+    {
+        BusData* bus = SaXAudio::GetBus(busID);
+        if (!bus || !bus->voice) return;
+
+        bus->eq = eqParams;
+        SaXAudio::SetEq(bus->voice, bus);
+    }
+
+    EXPORT void RemoveEq(const INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+        if (!voice || !voice->SourceVoice) return;
+        SaXAudio::RemoveEq(voice->SourceVoice, &voice->EffectData);
+    }
+
+    EXPORT void RemoveEqBus(const INT32 busID)
+    {
+        BusData* bus = SaXAudio::GetBus(busID);
+        if (!bus || !bus->voice) return;
+        SaXAudio::RemoveEq(bus->voice, bus);
     }
 
     /// <summary>
@@ -853,7 +936,7 @@ namespace SaXAudio
         if (!SourceVoice || !BankData) return;
 
         UINT32 sourceChannels = BankData->channels;
-        UINT32 destChannels = SaXAudio::m_outputChannels;
+        UINT32 destChannels = SaXAudio::m_masterDetails.InputChannels;
         DWORD channelMask = SaXAudio::m_channelMask;
         if (sourceChannels > 2 || destChannels == 0)
             return;
@@ -1133,6 +1216,7 @@ namespace SaXAudio
         if (voice->m_fadeInfo.stop && voice->m_fadeInfo.volumeRate == 0)
         {
             Log(voice->BankID, voice->VoiceID, "[Fade] Stopping");
+            voice->IsPlaying = true;
             voice->Stop();
         }
         voice->m_fading = false;
@@ -1225,8 +1309,12 @@ namespace SaXAudio
     INT32 SaXAudio::m_voiceCounter = 0;
     mutex SaXAudio::m_voiceMutex;
 
+    unordered_map<INT32, BusData> SaXAudio::m_buses;
+    INT32 SaXAudio::m_busCounter = 0;
+    mutex SaXAudio::m_busMutex;
+
     DWORD SaXAudio::m_channelMask = 0;
-    UINT32 SaXAudio::m_outputChannels = 0;
+    XAUDIO2_VOICE_DETAILS SaXAudio::m_masterDetails = { 0 };
 
     OnFinishedCallback SaXAudio::OnFinishedCallback = nullptr;
 
@@ -1278,15 +1366,9 @@ namespace SaXAudio
             return false;
         }
 
-        // Count destination channels from channel mask
-        m_outputChannels = 0;
-        DWORD tempMask = m_channelMask;
-        while (tempMask)
-        {
-            if (tempMask & 1) m_outputChannels++;
-            tempMask >>= 1;
-        }
-        Log(-1, -1, "[Init] Initialization complete. Number of output channels: " + to_string(m_outputChannels));
+        // Get details
+        m_masteringVoice->GetVoiceDetails(&m_masterDetails);
+        Log(-1, -1, "[Init] Initialization complete. Channels: " + to_string(m_masterDetails.InputChannels) + " Sample rate: " + to_string(m_masterDetails.InputSampleRate));
 
         return true;
     }
@@ -1411,6 +1493,45 @@ namespace SaXAudio
         }
     }
 
+    INT32 SaXAudio::AddBus()
+    {
+        lock_guard<mutex> lock(m_busMutex);
+
+        Log(-1, -1, "[AddBus]");
+
+        IXAudio2SubmixVoice* bus;
+        HRESULT hr = m_XAudio->CreateSubmixVoice(&bus, m_masterDetails.InputChannels, m_masterDetails.InputSampleRate);
+        if (FAILED(hr))
+        {
+            return -1;
+        }
+
+        BusData data;
+        data.voice = bus;
+        data.effectChain = { 2, nullptr };
+        data.descriptors[0] = { nullptr, false, SaXAudio::m_masterDetails.InputChannels };
+        data.descriptors[1] = { nullptr, false, SaXAudio::m_masterDetails.InputChannels };
+
+        m_buses[m_busCounter++] = data;
+        return m_busCounter - 1;
+    }
+
+    void SaXAudio::RemoveBus(const INT32 busID)
+    {
+        lock_guard<mutex> lock(m_busMutex);
+
+        Log(-1, -1, "[Remove] " + to_string(busID));
+
+        // TODO: Delete all voices on that bus? Or do they get cleaned up automatically?
+
+        auto it = m_buses.find(busID);
+        if (it != m_buses.end())
+        {
+            it->second.voice->DestroyVoice();
+            m_buses.erase(busID);
+        }
+    }
+
     BOOL SaXAudio::StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length)
     {
         int error;
@@ -1441,9 +1562,11 @@ namespace SaXAudio
         return data != nullptr;
     }
 
-    AudioVoice* SaXAudio::CreateVoice(const INT32 bankID)
+    AudioVoice* SaXAudio::CreateVoice(const INT32 bankID, const INT32 busID)
     {
-        lock_guard<mutex> lock(m_voiceMutex);
+        lock_guard<mutex> banklock(m_bankMutex);
+        lock_guard<mutex> buslock(m_busMutex);
+        lock_guard<mutex> voicelock(m_voiceMutex);
 
         AudioData* data = nullptr;
 
@@ -1484,7 +1607,31 @@ namespace SaXAudio
             voice = new AudioVoice;
         }
 
-        HRESULT hr = m_XAudio->CreateSourceVoice(&voice->SourceVoice, &wfx, 0, XAUDIO2_MAX_FREQ_RATIO, voice, nullptr, nullptr);
+        IXAudio2SubmixVoice* bus = nullptr;
+        if (busID >= 0)
+        {
+            auto it = m_buses.find(busID);
+            if (it != m_buses.end())
+                bus = it->second.voice;
+        }
+
+        HRESULT hr = 0;
+        if (bus)
+        {
+            XAUDIO2_SEND_DESCRIPTOR sendDesc { 0, bus };
+            XAUDIO2_VOICE_SENDS sends { 1, &sendDesc };
+
+            HRESULT hr = m_XAudio->CreateSourceVoice(&voice->SourceVoice, &wfx, 0, XAUDIO2_MAX_FREQ_RATIO, voice, &sends, nullptr);
+            if (FAILED(hr))
+            {
+                return nullptr;
+            }
+        }
+        else
+        {
+            HRESULT hr = m_XAudio->CreateSourceVoice(&voice->SourceVoice, &wfx, 0, XAUDIO2_MAX_FREQ_RATIO, voice, nullptr, nullptr);
+        }
+
         if (FAILED(hr))
         {
             return nullptr;
@@ -1505,7 +1652,7 @@ namespace SaXAudio
 
         m_voices[voice->VoiceID] = voice;
 
-        Log(bankID, voice->VoiceID, "[CreateVoice]");
+        Log(bankID, voice->VoiceID, "[CreateVoice]" + (bus ? " Created on bus " + to_string(busID) : ""));
 
         return voice;
     }
@@ -1517,6 +1664,98 @@ namespace SaXAudio
         if (it != m_voices.end() && it->second->BankData)
             voice = it->second;
         return voice;
+    }
+
+    BusData* SaXAudio::GetBus(const INT32 busID)
+    {
+        BusData* bus = nullptr;
+        auto it = m_buses.find(busID);
+        if (it != m_buses.end())
+            bus = &it->second;
+        return bus;
+    }
+
+
+    void SaXAudio::CreateEffectChain(IXAudio2Voice* voice, EffectData* data)
+    {
+        HRESULT hr = XAudio2CreateReverb(&data->descriptors[1].pEffect);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to create reverb effect");
+        }
+
+        hr = CreateFX(__uuidof(FXEQ), &data->descriptors[0].pEffect);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to create Eq effect");
+        }
+
+        data->effectChain.EffectCount = 2;
+        data->effectChain.pEffectDescriptors = data->descriptors;
+
+        hr = voice->SetEffectChain(&data->effectChain);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to set effect chain");
+        }
+    }
+
+    void SaXAudio::SetReverb(IXAudio2Voice* voice, EffectData* data)
+    {
+        if (!data->effectChain.pEffectDescriptors)
+        {
+            CreateEffectChain(voice, data);
+        }
+
+        HRESULT hr = voice->EnableEffect(1);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to enable reverb");
+        }
+        
+        hr = voice->SetEffectParameters(1, &data->reverb, sizeof(XAUDIO2FX_REVERB_PARAMETERS), XAUDIO2_COMMIT_NOW);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to set effect parameters");
+        }
+    }
+
+    void SaXAudio::RemoveReverb(IXAudio2Voice* voice, EffectData* data)
+    {
+        HRESULT hr = voice->DisableEffect(1);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to remove reverb");
+        }
+    }
+
+    void SaXAudio::SetEq(IXAudio2Voice* voice, EffectData* data)
+    {
+        if (!data->effectChain.pEffectDescriptors)
+        {
+            CreateEffectChain(voice, data);
+        }
+
+        HRESULT hr = voice->EnableEffect(0);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to enable Eq");
+        }
+
+        hr = voice->SetEffectParameters(0, &data->eq, sizeof(FXEQ_PARAMETERS), XAUDIO2_COMMIT_NOW);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to set effect parameters");
+        }
+    }
+
+    void SaXAudio::RemoveEq(IXAudio2Voice* voice, EffectData* data)
+    {
+        HRESULT hr = voice->DisableEffect(0);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to remove Eq");
+        }
     }
 
     void SaXAudio::DecodeOgg(const INT32 bankID, stb_vorbis* vorbis)
@@ -1591,6 +1830,16 @@ namespace SaXAudio
 
         // Close the Vorbis file
         stb_vorbis_close(vorbis);
+
+        {
+            lock_guard<mutex> lock(m_bankMutex);
+
+            AudioData* data = nullptr;
+            it = m_bank.find(bankID);
+            if (it != m_bank.end())
+                data = it->second;
+            if (data) (*data->onDecodedCallback)(bankID);
+        }
 
         Log(bankID, -1, "[DecodeOgg] Decoding complete");
     }

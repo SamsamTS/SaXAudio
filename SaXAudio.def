@@ -14,6 +14,9 @@ EXPORTS
 	
 	CreateVoice
 	VoiceExist
+
+	CreateBus
+	RemoveBus
 	
 	Start
 	StartAtSample
@@ -34,6 +37,16 @@ EXPORTS
 	GetSpeed
 	GetPanning
 	GetLooping
+
+	SetReverb
+	SetReverbBus
+	RemoveReverb
+	RemoveReverbBus
+
+	SetEq
+	SetEqBus
+	RemoveEq
+	RemoveEqBus
 	
 	GetPositionSample
 	GetPositionTime

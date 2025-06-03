@@ -1,13 +1,13 @@
 EXPORTS
 	Create
 	Release
+
+	StopEngine
+	StartEngine
 	
 	PauseAll
 	ResumeAll
 	Protect
-
-	StopEngine
-	StartEngine
 	
 	BankAddOgg
 	BankRemove
@@ -39,14 +39,13 @@ EXPORTS
 	GetLooping
 
 	SetReverb
-	SetReverbBus
 	RemoveReverb
-	RemoveReverbBus
 
 	SetEq
-	SetEqBus
 	RemoveEq
-	RemoveEqBus
+
+	SetEcho
+	RemoveEcho
 	
 	GetPositionSample
 	GetPositionTime

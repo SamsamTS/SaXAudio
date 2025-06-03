@@ -46,69 +46,41 @@ namespace SaXAudio
     // EXPORTS implementation
     // -------------------------------------------------------
 
-    /// <summary>
-    /// Initialize XAudio and create a mastering voice
-    /// </summary>
-    /// <returns>Return true if successful</returns>
     EXPORT BOOL Create()
     {
         return SaXAudio::Init();
     }
 
-    /// <summary>
-    /// Release everything
-    /// </summary>
     EXPORT void Release()
     {
         SaXAudio::Release();
     }
 
-    /// <summary>
-    /// Resume playing all voices
-    /// </summary>
     EXPORT void StartEngine()
     {
         SaXAudio::StartEngine();
     }
 
-    /// <summary>
-    /// Pause all playing voices
-    /// </summary>
     EXPORT void StopEngine()
     {
         SaXAudio::StopEngine();
     }
 
-    /// <summary>
-    /// Pause all playing voices
-    /// </summary>
     EXPORT void PauseAll(const FLOAT fade)
     {
         SaXAudio::PauseAll(fade);
     }
-    /// <summary>
-    /// Resume playing all voices
-    /// </summary>
+
     EXPORT void ResumeAll(const FLOAT fade)
     {
         SaXAudio::ResumeAll(fade);
     }
-    /// <summary>
-    /// Protect a voice from PauseAll and ResumeAll
-    /// </summary>
-    /// <param name="voiceID"></param>
+
     EXPORT void Protect(const INT32 voiceID)
     {
         SaXAudio::Protect(voiceID);
     }
 
-    /// <summary>
-    /// Add ogg audio data to the sound bank
-    /// The data will be decoded (async) and stored in memory
-    /// </summary>
-    /// <param name="buffer">The ogg data</param>
-    /// <param name="length">The length in bytes of the data</param>
-    /// <returns>unique bankID for that audio data</returns>
     EXPORT INT32 BankAddOgg(const BYTE* buffer, const UINT32 length, const OnDecodedCallback callback)
     {
         AudioData* data = new AudioData;
@@ -118,22 +90,12 @@ namespace SaXAudio
             SaXAudio::StartDecodeOgg(bankID, buffer, length);
         return bankID;
     }
-    /// <summary>
-    /// Remove and free the memory of the specified audio data
-    /// </summary>
-    /// <param name="bankID">The bankID of the data to remove</param>
+
     EXPORT void BankRemove(const INT32 bankID)
     {
         SaXAudio::Remove(bankID);
     }
 
-    /// <summary>
-    /// Create a voice for playing the specified audio data
-    /// When the audio data finished playing, the voice will be deleted
-    /// </summary>
-    /// <param name="bankID">The bankID of the data to play</param>
-    /// <param name="paused">when false, the audio will start playing immediately</param>
-    /// <returns>unique voiceID</returns>
     EXPORT INT32 CreateVoice(const INT32 bankID, const INT32 busID, const BOOL paused)
     {
         AudioVoice* voice = SaXAudio::CreateVoice(bankID, busID);
@@ -147,51 +109,26 @@ namespace SaXAudio
         return voice->VoiceID;
     }
 
-    /// <summary>
-    /// Check if the specified voice exists
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns>true if the specified voice exists</returns>
     EXPORT BOOL VoiceExist(const INT32 voiceID)
     {
         return SaXAudio::GetVoice(voiceID) != nullptr;
     }
 
-    /// <summary>
-    /// Create a bus
-    /// </summary>
-    /// <returns>unique busID</returns>
     EXPORT INT32 CreateBus()
     {
         return SaXAudio::AddBus();
     }
 
-    /// <summary>
-    /// Removes a bus
-    /// </summary>
-    /// <param name="busID"></param>
     EXPORT void RemoveBus(INT32 busID)
     {
         SaXAudio::RemoveBus(busID);
     }
 
-    /// <summary>
-    /// Starts playing the specified voice
-    /// Resets the pause stack
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns>true if successful or already playing</returns>
     EXPORT BOOL Start(const INT32 voiceID)
     {
         return StartAtSample(voiceID, 0);
     }
 
-    /// <summary>
-    /// Starts playing the specified voice at a specific sample
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="sample"></param>
-    /// <returns>true if successful</returns>
     EXPORT BOOL StartAtSample(const INT32 voiceID, const UINT32 sample)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -202,12 +139,6 @@ namespace SaXAudio
         return false;
     }
 
-    /// <summary>
-    /// Starts playing the specified voice at a specific time in seconds
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="time"></param>
-    /// <returns></returns>
     EXPORT BOOL StartAtTime(const INT32 voiceID, const FLOAT time)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -219,13 +150,6 @@ namespace SaXAudio
         return false;
     }
 
-    /// <summary>
-    /// Stops playing the specified voice
-    /// This will also delete the voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="time"></param>
-    /// <returns></returns>
     EXPORT BOOL Stop(const INT32 voiceID, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -236,14 +160,6 @@ namespace SaXAudio
         return false;
     }
 
-    /// <summary>
-    /// Pause the voice and increase the pause stack.
-    /// About the pause stack: if a voice is paused more than once, it will take
-    /// the same amount of resumes to for it to start playing again.
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="fade">The duration of the fade in seconds</param>
-    /// <returns>value of the pause stack</returns>
     EXPORT UINT32 Pause(const INT32 voiceID, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -254,12 +170,6 @@ namespace SaXAudio
         return 0;
     }
 
-    /// <summary>
-    /// Reduce the pause stack and resume playing the voice if empty
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="fade"></param>
-    /// <returns>value of the pause stack</returns>
     EXPORT UINT32 Resume(const INT32 voiceID, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -270,11 +180,6 @@ namespace SaXAudio
         return 0;
     }
 
-    /// <summary>
-    /// Gets the pause stack value of the specified voice, 0 if empty
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
     EXPORT UINT32 GetPauseStack(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -285,11 +190,6 @@ namespace SaXAudio
         return 0;
     }
 
-    /// <summary>
-    /// Sets the volume of the voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="volume">[0, 1]</param>
     EXPORT void SetVolume(const INT32 voiceID, const FLOAT volume, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -299,12 +199,6 @@ namespace SaXAudio
         }
     }
 
-    /// <summary>
-    /// Sets the playback speed of the voice
-    /// This will affect the pitch of the audio
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="speed"></param>
     EXPORT void SetSpeed(const INT32 voiceID, const FLOAT speed, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -314,11 +208,6 @@ namespace SaXAudio
         }
     }
 
-    /// <summary>
-    /// Sets the panning of the voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="panning">[-1, 1]</param>
     EXPORT void SetPanning(const INT32 voiceID, const FLOAT panning, const FLOAT fade)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -328,11 +217,6 @@ namespace SaXAudio
         }
     }
 
-    /// <summary>
-    /// Sets if the voice should loop
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="looping"></param>
     EXPORT void SetLooping(const INT32 voiceID, const BOOL looping)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -362,13 +246,6 @@ namespace SaXAudio
         }
     }
 
-    /// <summary>
-    /// Sets the start and end looping points
-    /// By default the looping points are [0, last sample]
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <param name="start">in samples</param>
-    /// <param name="end">in samples</param>
     EXPORT void SetLoopPoints(const INT32 voiceID, const UINT32 start, const UINT32 end)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -378,11 +255,6 @@ namespace SaXAudio
         }
     }
 
-    /// <summary>
-    /// Gets the volume of the specified voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
     EXPORT FLOAT GetVolume(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -393,11 +265,6 @@ namespace SaXAudio
         return 1.0f;
     }
 
-    /// <summary>
-    /// Gets the speed of the specified voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
     EXPORT FLOAT GetSpeed(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -408,11 +275,6 @@ namespace SaXAudio
         return 1.0f;
     }
 
-    /// <summary>
-    /// Gets the panning of the specified voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
     EXPORT FLOAT GetPanning(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -423,11 +285,6 @@ namespace SaXAudio
         return 0.0f;
     }
 
-    /// <summary>
-    /// Gets the specified voice is looping
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
     EXPORT BOOL GetLooping(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -438,75 +295,159 @@ namespace SaXAudio
         return false;
     }
 
-    EXPORT void SetReverb(const INT32 voiceID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams)
+    EXPORT void SetReverb(const INT32 voiceID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams, BOOL isBus)
     {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (!voice || !voice->SourceVoice) return;
+        IXAudio2Voice* sourceVoice = nullptr;
+        EffectData* data = nullptr;
 
-        voice->EffectData.reverb = reverbParams;
-        SaXAudio::SetReverb(voice->SourceVoice, &voice->EffectData);
+        if (isBus)
+        {
+            BusData* bus = SaXAudio::GetBus(voiceID);
+            if (!bus || !bus->voice) return;
+
+            data = bus;
+            sourceVoice = bus->voice;
+        }
+        else
+        {
+            AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+            if (!voice || !voice->SourceVoice) return;
+
+            data = &voice->EffectData;
+            sourceVoice = voice->SourceVoice;
+        }
+
+        data->reverb = reverbParams;
+        SaXAudio::SetReverb(sourceVoice, data);
     }
 
-    EXPORT void SetReverbBus(const INT32 busID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams)
+    EXPORT void RemoveReverb(const INT32 voiceID, BOOL isBus)
     {
-        BusData* bus = SaXAudio::GetBus(busID);
-        if (!bus || !bus->voice) return;
+        IXAudio2Voice* sourceVoice = nullptr;
+        EffectData* data = nullptr;
 
-        bus->reverb = reverbParams;
-        SaXAudio::SetReverb(bus->voice, bus);
+        if (isBus)
+        {
+            BusData* bus = SaXAudio::GetBus(voiceID);
+            if (!bus || !bus->voice) return;
+
+            data = bus;
+            sourceVoice = bus->voice;
+        }
+        else
+        {
+            AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+            if (!voice || !voice->SourceVoice) return;
+
+            data = &voice->EffectData;
+            sourceVoice = voice->SourceVoice;
+        }
+
+        SaXAudio::RemoveReverb(sourceVoice, data);
     }
 
-    EXPORT void RemoveReverb(const INT32 voiceID)
+    EXPORT void SetEq(const INT32 voiceID, const FXEQ_PARAMETERS eqParams, BOOL isBus)
     {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (!voice || !voice->SourceVoice) return;
-        SaXAudio::RemoveReverb(voice->SourceVoice, &voice->EffectData);
+        IXAudio2Voice* sourceVoice = nullptr;
+        EffectData* data = nullptr;
+
+        if (isBus)
+        {
+            BusData* bus = SaXAudio::GetBus(voiceID);
+            if (!bus || !bus->voice) return;
+
+            data = bus;
+            sourceVoice = bus->voice;
+        }
+        else
+        {
+            AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+            if (!voice || !voice->SourceVoice) return;
+
+            data = &voice->EffectData;
+            sourceVoice = voice->SourceVoice;
+        }
+
+        data->eq = eqParams;
+        SaXAudio::SetEq(sourceVoice, data);
     }
 
-    EXPORT void RemoveReverbBus(const INT32 busID)
+    EXPORT void RemoveEq(const INT32 voiceID, BOOL isBus)
     {
-        BusData* bus = SaXAudio::GetBus(busID);
-        if (!bus || !bus->voice) return;
-        SaXAudio::RemoveReverb(bus->voice, bus);
+        IXAudio2Voice* sourceVoice = nullptr;
+        EffectData* data = nullptr;
+
+        if (isBus)
+        {
+            BusData* bus = SaXAudio::GetBus(voiceID);
+            if (!bus || !bus->voice) return;
+
+            data = bus;
+            sourceVoice = bus->voice;
+        }
+        else
+        {
+            AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+            if (!voice || !voice->SourceVoice) return;
+
+            data = &voice->EffectData;
+            sourceVoice = voice->SourceVoice;
+        }
+
+        SaXAudio::RemoveEq(sourceVoice, data);
     }
 
-    EXPORT void SetEq(const INT32 voiceID, const FXEQ_PARAMETERS eqParams)
+    EXPORT void SetEcho(const INT32 voiceID, const FXECHO_PARAMETERS echoParams, BOOL isBus)
     {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (!voice || !voice->SourceVoice) return;
+        IXAudio2Voice* sourceVoice = nullptr;
+        EffectData* data = nullptr;
 
-        voice->EffectData.eq = eqParams;
-        SaXAudio::SetEq(voice->SourceVoice, &voice->EffectData);
+        if (isBus)
+        {
+            BusData* bus = SaXAudio::GetBus(voiceID);
+            if (!bus || !bus->voice) return;
+
+            data = bus;
+            sourceVoice = bus->voice;
+        }
+        else
+        {
+            AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+            if (!voice || !voice->SourceVoice) return;
+
+            data = &voice->EffectData;
+            sourceVoice = voice->SourceVoice;
+        }
+
+        data->echo = echoParams;
+        SaXAudio::SetEcho(sourceVoice, data);
     }
 
-    EXPORT void SetEqBus(const INT32 busID, const FXEQ_PARAMETERS eqParams)
+    EXPORT void RemoveEcho(const INT32 voiceID, BOOL isBus)
     {
-        BusData* bus = SaXAudio::GetBus(busID);
-        if (!bus || !bus->voice) return;
+        IXAudio2Voice* sourceVoice = nullptr;
+        EffectData* data = nullptr;
 
-        bus->eq = eqParams;
-        SaXAudio::SetEq(bus->voice, bus);
+        if (isBus)
+        {
+            BusData* bus = SaXAudio::GetBus(voiceID);
+            if (!bus || !bus->voice) return;
+
+            data = bus;
+            sourceVoice = bus->voice;
+        }
+        else
+        {
+            AudioVoice* voice = SaXAudio::GetVoice(voiceID);
+            if (!voice || !voice->SourceVoice) return;
+
+            data = &voice->EffectData;
+            sourceVoice = voice->SourceVoice;
+        }
+
+        SaXAudio::RemoveEcho(sourceVoice, data);
     }
 
-    EXPORT void RemoveEq(const INT32 voiceID)
-    {
-        AudioVoice* voice = SaXAudio::GetVoice(voiceID);
-        if (!voice || !voice->SourceVoice) return;
-        SaXAudio::RemoveEq(voice->SourceVoice, &voice->EffectData);
-    }
-
-    EXPORT void RemoveEqBus(const INT32 busID)
-    {
-        BusData* bus = SaXAudio::GetBus(busID);
-        if (!bus || !bus->voice) return;
-        SaXAudio::RemoveEq(bus->voice, bus);
-    }
-
-    /// <summary>
-    /// Gets the position of the playing voice in samples
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns>sample position if playing or 0</returns>
     EXPORT UINT32 GetPositionSample(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -517,11 +458,6 @@ namespace SaXAudio
         return 0;
     }
 
-    /// <summary>
-    /// Gets the position of the playing voice in seconds
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns>position in seconds if playing or 0</returns>
     EXPORT FLOAT GetPositionTime(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -532,11 +468,6 @@ namespace SaXAudio
         return 0.0f;
     }
 
-    /// <summary>
-    /// Gets the total amount of samples of the voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
     EXPORT UINT32 GetTotalSample(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -547,11 +478,6 @@ namespace SaXAudio
         return 0;
     }
 
-    /// <summary>
-    /// Gets the total time, in seconds, of the voice
-    /// </summary>
-    /// <param name="voiceID"></param>
-    /// <returns></returns>
     EXPORT FLOAT GetTotalTime(const INT32 voiceID)
     {
         AudioVoice* voice = SaXAudio::GetVoice(voiceID);
@@ -562,10 +488,6 @@ namespace SaXAudio
         return 0.0f;
     }
 
-    /// <summary>
-    /// Sets a callback for when the voice finished playing
-    /// </summary>
-    /// <param name="callback"></param>
     EXPORT void SetOnFinishedCallback(const OnFinishedCallback callback)
     {
         Log(-1, -1, "[OnVoiceFinished]");
@@ -1508,9 +1430,10 @@ namespace SaXAudio
 
         BusData data;
         data.voice = bus;
-        data.effectChain = { 2, nullptr };
+        data.effectChain = { 3, nullptr };
         data.descriptors[0] = { nullptr, false, SaXAudio::m_masterDetails.InputChannels };
         data.descriptors[1] = { nullptr, false, SaXAudio::m_masterDetails.InputChannels };
+        data.descriptors[2] = { nullptr, false, SaXAudio::m_masterDetails.InputChannels };
 
         m_buses[m_busCounter++] = data;
         return m_busCounter - 1;
@@ -1675,31 +1598,6 @@ namespace SaXAudio
         return bus;
     }
 
-
-    void SaXAudio::CreateEffectChain(IXAudio2Voice* voice, EffectData* data)
-    {
-        HRESULT hr = XAudio2CreateReverb(&data->descriptors[1].pEffect);
-        if (FAILED(hr))
-        {
-            Log(-1, -1, "Failed to create reverb effect");
-        }
-
-        hr = CreateFX(__uuidof(FXEQ), &data->descriptors[0].pEffect);
-        if (FAILED(hr))
-        {
-            Log(-1, -1, "Failed to create Eq effect");
-        }
-
-        data->effectChain.EffectCount = 2;
-        data->effectChain.pEffectDescriptors = data->descriptors;
-
-        hr = voice->SetEffectChain(&data->effectChain);
-        if (FAILED(hr))
-        {
-            Log(-1, -1, "Failed to set effect chain");
-        }
-    }
-
     void SaXAudio::SetReverb(IXAudio2Voice* voice, EffectData* data)
     {
         if (!data->effectChain.pEffectDescriptors)
@@ -1712,11 +1610,11 @@ namespace SaXAudio
         {
             Log(-1, -1, "Failed to enable reverb");
         }
-        
+
         hr = voice->SetEffectParameters(1, &data->reverb, sizeof(XAUDIO2FX_REVERB_PARAMETERS), XAUDIO2_COMMIT_NOW);
         if (FAILED(hr))
         {
-            Log(-1, -1, "Failed to set effect parameters");
+            Log(-1, -1, "Failed to set reverb parameters");
         }
     }
 
@@ -1739,19 +1637,48 @@ namespace SaXAudio
         HRESULT hr = voice->EnableEffect(0);
         if (FAILED(hr))
         {
-            Log(-1, -1, "Failed to enable Eq");
+            Log(-1, -1, "Failed to enable EQ");
         }
 
         hr = voice->SetEffectParameters(0, &data->eq, sizeof(FXEQ_PARAMETERS), XAUDIO2_COMMIT_NOW);
         if (FAILED(hr))
         {
-            Log(-1, -1, "Failed to set effect parameters");
+            Log(-1, -1, "Failed to set EQ effect parameters");
         }
     }
 
     void SaXAudio::RemoveEq(IXAudio2Voice* voice, EffectData* data)
     {
         HRESULT hr = voice->DisableEffect(0);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to remove EQ");
+        }
+    }
+
+    void SaXAudio::SetEcho(IXAudio2Voice* voice, EffectData* data)
+    {
+        if (!data->effectChain.pEffectDescriptors)
+        {
+            CreateEffectChain(voice, data);
+        }
+
+        HRESULT hr = voice->EnableEffect(2);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to enable echo");
+        }
+
+        hr = voice->SetEffectParameters(0, &data->echo, sizeof(FXECHO_PARAMETERS), XAUDIO2_COMMIT_NOW);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to set echo parameters");
+        }
+    }
+
+    void SaXAudio::RemoveEcho(IXAudio2Voice* voice, EffectData* data)
+    {
+        HRESULT hr = voice->DisableEffect(2);
         if (FAILED(hr))
         {
             Log(-1, -1, "Failed to remove Eq");
@@ -1863,6 +1790,36 @@ namespace SaXAudio
                 voice->Reset();
                 Log(voice->BankID, voiceID, "[RemoveVoice] Deleted voice");
             }
+        }
+    }
+
+    void SaXAudio::CreateEffectChain(IXAudio2Voice* voice, EffectData* data)
+    {
+        HRESULT hr = XAudio2CreateReverb(&data->descriptors[1].pEffect);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to create reverb effect");
+        }
+
+        hr = CreateFX(__uuidof(FXEQ), &data->descriptors[0].pEffect);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to create EQ effect");
+        }
+
+        hr = CreateFX(__uuidof(FXEcho), &data->descriptors[2].pEffect);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to create echo effect");
+        }
+
+        data->effectChain.EffectCount = 3;
+        data->effectChain.pEffectDescriptors = data->descriptors;
+
+        hr = voice->SetEffectChain(&data->effectChain);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to set effect chain");
         }
     }
 }

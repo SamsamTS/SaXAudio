@@ -27,34 +27,21 @@
 
 namespace SaXAudio
 {
+    typedef void (*OnFinishedCallback)(INT32 voiceID);
+
     class AudioVoice : public IXAudio2VoiceCallback
     {
     private:
-        struct FadeInfo
-        {
-            FLOAT volume = 0;
-            FLOAT volumeTarget = 0;
-            FLOAT volumeRate = 0;
-
-            FLOAT speed = 0;
-            FLOAT speedTarget = 0;
-            FLOAT speedRate = 0;
-
-            FLOAT panning = 0;
-            FLOAT panningTarget = 0;
-            FLOAT panningRate = 0;
-
-            BOOL pause = false;
-            BOOL stop = false;
-        } m_fadeInfo = {};
-        atomic<BOOL> m_fading = false;
+        UINT32 m_volumeFadeID = 0;
+        UINT32 m_speedFadeID = 0;
+        UINT32 m_panningFadeID = 0;
+        UINT32 m_pauseFadeID = 0;
 
         atomic<UINT32> m_pauseStack = 0;
         INT64 m_positionOffset = 0;
         FLOAT m_volumeTarget = 0;
 
         atomic<UINT32> m_tempFlush = 0;
-
     public:
         AudioData* BankData = nullptr;
         IXAudio2SourceVoice* SourceVoice = nullptr;
@@ -107,11 +94,9 @@ namespace SaXAudio
 
     private:
         static void WaitForDecoding(AudioVoice* voice);
-        static FLOAT GetRate(const FLOAT from, const FLOAT to, const FLOAT duration);
-        static void Fade(AudioVoice* voice);
 
-        void FadeVolume(const FLOAT to, const FLOAT duration);
-        void FadeSpeed(const FLOAT to, const FLOAT duration);
-        void FadePanning(const FLOAT to, const FLOAT duration);
+        static void OnFadeVolume(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
+        static void OnFadeSpeed(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
+        static void OnFadePanning(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
     };
 }

@@ -30,6 +30,9 @@
     <ClInclude Include="AudioVoice.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Fader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SaXAudio.cpp">
@@ -45,6 +48,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="AudioVoice.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

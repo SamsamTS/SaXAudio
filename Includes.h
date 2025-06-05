@@ -41,6 +41,7 @@
 #include <xaudio2fx.h>
 #include <xapofx.h>
 #include <unordered_map>
+#include <queue>
 #include <thread>
 #include <atomic>
 #include <mutex>
@@ -52,12 +53,6 @@ using namespace std;
 #include "stb_vorbis.c"
 
 #define EXPORT extern "C" __declspec(dllexport)
-
-namespace SaXAudio
-{
-    typedef void (*OnDecodedCallback)(INT32 bankID);
-    typedef void (*OnFinishedCallback)(INT32 voiceID);
-}
 
 #ifdef LOGGING
 namespace SaXAudio

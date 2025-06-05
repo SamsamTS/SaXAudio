@@ -26,6 +26,8 @@
 
 namespace SaXAudio
 {
+    typedef void (*OnDecodedCallback)(INT32 bankID);
+
     struct EffectData
     {
         XAUDIO2_EFFECT_CHAIN effectChain = { 0 };

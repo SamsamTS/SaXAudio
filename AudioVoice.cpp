@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "SaXAudio.h"
+#include "Fader.h"
 
 namespace SaXAudio
 {
@@ -129,17 +130,19 @@ namespace SaXAudio
         IsPlaying = false;
         Looping = false;
 
+        Fader::Instance.StopFade(m_volumeFadeID);
+        m_volumeFadeID = 0;
+
         if (fade > 0)
         {
-            FadeVolume(0, fade);
-            m_fadeInfo.pause = false;
-            m_fadeInfo.stop = true;
+            FLOAT current = 1.0f;
+            SourceVoice->GetVolume(&current);
+            m_volumeFadeID = Fader::Instance.StartFade(current, 0, fade, OnFadeVolume, (void*)this);
+            if (m_pauseStack > 0)
+                Fader::Instance.PauseFade(m_volumeFadeID);
         }
         else
         {
-            m_fadeInfo.pause = false;
-            m_fadeInfo.stop = false;
-            m_fading = false;
             m_tempFlush = 0;
             SourceVoice->Stop();
             SourceVoice->FlushSourceBuffers();
@@ -155,21 +158,21 @@ namespace SaXAudio
         m_pauseStack++;
         Log(BankID, VoiceID, "[Pause] stack: " + to_string(m_pauseStack));
 
-        if (!IsPlaying && !m_fadeInfo.stop)
-            return m_pauseStack;
+        Fader::Instance.StopFade(m_pauseFadeID);
+        m_pauseFadeID = 0;
 
-        if (fade > 0 && Volume > 0 && !m_fadeInfo.stop)
+        Fader::Instance.PauseFade(m_volumeFadeID);
+        Fader::Instance.PauseFade(m_speedFadeID);
+        Fader::Instance.PauseFade(m_panningFadeID);
+
+        if (fade > 0 && Volume > 0 && IsPlaying)
         {
-            FadeVolume(0, fade);
-            m_fadeInfo.pause = true;
+            FLOAT current = 1.0f;
+            SourceVoice->GetVolume(&current);
+            m_pauseFadeID = Fader::Instance.StartFade(current, 0, fade, OnFadeVolume, (void*)this);
         }
         else
         {
-            m_fadeInfo.pause = false;
-            if (m_fading && m_fadeInfo.stop)
-                m_fading = false;
-            else
-                m_fadeInfo.volumeRate = 0;
             SourceVoice->Stop();
         }
         return m_pauseStack;
@@ -186,27 +189,23 @@ namespace SaXAudio
             return m_pauseStack;
 
         SourceVoice->Start();
-        m_fadeInfo.pause = false;
+
+        Fader::Instance.StopFade(m_pauseFadeID);
+        m_pauseFadeID = 0;
 
         if (fade > 0 && Volume > 0)
         {
-            FLOAT target = Volume;
-            Volume = 0;
-            FadeVolume(target, fade);
-            Volume = target;
+            FLOAT current = 0.0f;
+            SourceVoice->GetVolume(&current);
+            m_pauseFadeID = Fader::Instance.StartFade(current, Volume, fade, OnFadeVolume, (void*)this);
         }
-        else if (m_fadeInfo.volumeRate != 0 || m_fadeInfo.speedRate != 0 || m_fadeInfo.panningRate != 0)
+        else
         {
-            // Resume the fading interrupted by pause
-            m_fading = true;
-            thread fade(Fade, this);
-            fade.detach();
-        }
-
-        if (fade == 0)
-        {
-            m_fadeInfo.volumeRate = 0;
             SourceVoice->SetVolume(Volume);
+            // Resume the fading interrupted by pause
+            Fader::Instance.ResumeFade(m_volumeFadeID);
+            Fader::Instance.ResumeFade(m_speedFadeID);
+            Fader::Instance.ResumeFade(m_panningFadeID);
         }
         return m_pauseStack;
     }
@@ -228,7 +227,7 @@ namespace SaXAudio
         if (Looping && position > LoopStart)
         {
             // We are somewhere in the loop
-            position = LoopStart + ((position - LoopStart) % (LoopEnd - LoopStart));
+            position = LoopStart + ((position - LoopStart) % (UINT64)(LoopEnd - LoopStart));
         }
 
         if (position == 0)
@@ -272,7 +271,7 @@ namespace SaXAudio
                 if (position > LoopStart)
                 {
                     // We are somewhere in the loop
-                    position = LoopStart + ((position - LoopStart) % (LoopEnd - LoopStart));
+                    position = LoopStart + ((position - LoopStart) % (UINT64)(LoopEnd - LoopStart));
                 }
             }
         }
@@ -304,13 +303,20 @@ namespace SaXAudio
         if (!SourceVoice || Volume == volume) return;
         Log(BankID, VoiceID, "[SetVolume] to: " + to_string(volume) + " fade: " + to_string(fade));
 
+        Fader::Instance.StopFade(m_volumeFadeID);
+        m_volumeFadeID = 0;
+
         if (fade > 0)
         {
-            FadeVolume(volume, fade);
+            FLOAT current = 1.0f;
+            SourceVoice->GetVolume(&current);
+            m_volumeFadeID = Fader::Instance.StartFade(current, volume, fade, OnFadeVolume, (void*)this);
+            if (m_pauseStack > 0)
+                Fader::Instance.PauseFade(m_volumeFadeID);
         }
         else
         {
-            m_fadeInfo.volumeRate = 0;
+            Volume = volume;
             SourceVoice->SetVolume(volume);
         }
         Volume = volume;
@@ -325,20 +331,20 @@ namespace SaXAudio
         if (speed < XAUDIO2_MIN_FREQ_RATIO)
             speed = XAUDIO2_MIN_FREQ_RATIO;
 
+        Fader::Instance.StopFade(m_speedFadeID);
+        m_speedFadeID = 0;
+
         if (fade > 0)
         {
-            FadeSpeed(speed, fade);
+            m_speedFadeID = Fader::Instance.StartFade(Speed, speed, fade, OnFadeSpeed, (void*)this);
+            if (m_pauseStack > 0)
+                Fader::Instance.PauseFade(m_speedFadeID);
         }
         else
         {
-            m_fadeInfo.speedRate = 0;
-            HRESULT hr = SourceVoice->SetFrequencyRatio(speed);
-            if (FAILED(hr))
-            {
-                Log(BankID, VoiceID, "[SetSpeed] FAILED setting speed to " + to_string(speed));
-            }
+            Speed = speed;
+            SourceVoice->SetFrequencyRatio(speed);
         }
-        Speed = speed;
     }
 
     void AudioVoice::SetPanning(const FLOAT panning, const FLOAT fade)
@@ -346,16 +352,20 @@ namespace SaXAudio
         if (!SourceVoice || Panning == panning) return;
         Log(BankID, VoiceID, "[SetPanning] to: " + to_string(panning) + " fade: " + to_string(fade));
 
+        Fader::Instance.StopFade(m_panningFadeID);
+        m_panningFadeID = 0;
+
         if (fade > 0)
         {
-            FadePanning(panning, fade);
+            m_panningFadeID = Fader::Instance.StartFade(Panning, panning, fade, OnFadePanning, (void*)this);
+            if (m_pauseStack > 0)
+                Fader::Instance.PauseFade(m_panningFadeID);
         }
         else
         {
-            m_fadeInfo.panningRate = 0;
+            Panning = panning;
             SetOutputMatrix(panning);
         }
-        Panning = panning;
     }
 
     // Fast approximation of cosine using Taylor series (good for [0, π/2])
@@ -549,11 +559,21 @@ namespace SaXAudio
 
     void AudioVoice::Reset()
     {
+        Fader::Instance.StopFade(m_volumeFadeID);
+        Fader::Instance.StopFade(m_speedFadeID);
+        Fader::Instance.StopFade(m_panningFadeID);
+        Fader::Instance.StopFade(m_pauseFadeID);
+
+        m_volumeFadeID = 0;
+        m_speedFadeID = 0;
+        m_panningFadeID = 0;
+        m_pauseFadeID = 0;
+
         m_pauseStack = 0;
         m_positionOffset = 0;
         m_volumeTarget = 0;
-        m_fadeInfo = {};
-        m_fading = false;
+
+        m_tempFlush = 0;
 
         Buffer = { 0 };
         BankID = -1;
@@ -569,156 +589,63 @@ namespace SaXAudio
         IsPlaying = false;
     }
 
-    inline FLOAT AudioVoice::GetRate(const FLOAT from, const FLOAT to, const FLOAT duration)
+    void AudioVoice::OnFadeVolume(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
     {
-        return (to - from) / (duration * 100.0f);
-    }
+        AudioVoice* voice = (AudioVoice*)context;
+        voice->SourceVoice->SetVolume(newValues[0]);
 
-    inline FLOAT MoveToTarget(const FLOAT start, const FLOAT end, const FLOAT rate)
-    {
-        if (rate > 0 && start < end)
+        if (hasFinished)
         {
-            FLOAT result = start + rate;
-            return result > end ? end : result;
-        }
-        if (rate < 0 && start > end)
-        {
-            FLOAT result = start + rate;
-            return result < end ? end : result;
-        }
-        // Rate would move away from target
-        Log(-1, -1, "[MoveToTarget] Invalid rate");
-        return end;
-    }
-
-    void AudioVoice::Fade(AudioVoice* voice)
-    {
-        if (!voice->SourceVoice || !voice->BankData)
-        {
-            voice->m_fading = false;
-            return;
-        }
-
-        Log(voice->BankID, voice->VoiceID, "[Fade] Fading" +
-            (voice->m_fadeInfo.volumeRate != 0 ? " volumeRate: " + to_string(voice->m_fadeInfo.volumeRate) : "") +
-            (voice->m_fadeInfo.speedRate != 0 ? " speedRate: " + to_string(voice->m_fadeInfo.speedRate) : "") +
-            (voice->m_fadeInfo.panningRate != 0 ? " panningRate: " + to_string(voice->m_fadeInfo.panningRate) : ""));
-
-        auto start = chrono::steady_clock::now();
-        chrono::milliseconds interval = chrono::milliseconds(10);
-        UINT64 count = 0;
-
-        do
-        {
-            count++;
-            auto target_time = start + (interval * count);
-            this_thread::sleep_until(target_time);
-
-            // Volume
-            if (voice->m_fadeInfo.volumeRate != 0)
+            // Is it a pause/resume fade?
+            if (voice->m_pauseFadeID != 0)
             {
-                voice->m_fadeInfo.volume = MoveToTarget(voice->m_fadeInfo.volume, voice->m_fadeInfo.volumeTarget, voice->m_fadeInfo.volumeRate);
-                if (voice->m_fadeInfo.volume == voice->m_fadeInfo.volumeTarget)
-                    voice->m_fadeInfo.volumeRate = 0;
-                voice->SourceVoice->SetVolume(voice->m_fadeInfo.volume);
+                voice->m_pauseFadeID = 0;
+
+                if (voice->m_pauseStack > 0)
+                {
+                    // Pause
+                    voice->SourceVoice->Stop();
+                }
+                else
+                {
+                    // Resume
+                    Fader::Instance.ResumeFade(voice->m_volumeFadeID);
+                    Fader::Instance.ResumeFade(voice->m_speedFadeID);
+                    Fader::Instance.ResumeFade(voice->m_panningFadeID);
+                }
             }
-
-            // Speed
-            if (voice->m_fadeInfo.speedRate != 0)
+            else
             {
-                voice->m_fadeInfo.speed = MoveToTarget(voice->m_fadeInfo.speed, voice->m_fadeInfo.speedTarget, voice->m_fadeInfo.speedRate);
-                if (voice->m_fadeInfo.speed == voice->m_fadeInfo.speedTarget)
-                    voice->m_fadeInfo.speedRate = 0;
-                voice->SourceVoice->SetFrequencyRatio(voice->m_fadeInfo.speed);
+                voice->m_volumeFadeID = 0;
             }
-
-            // Panning
-            if (voice->m_fadeInfo.panningRate != 0)
+            
+            if (!voice->IsPlaying)
             {
-                voice->m_fadeInfo.panning = MoveToTarget(voice->m_fadeInfo.panning, voice->m_fadeInfo.panningTarget, voice->m_fadeInfo.panningRate);
-                if (voice->m_fadeInfo.panning == voice->m_fadeInfo.panningTarget)
-                    voice->m_fadeInfo.panningRate = 0;
-                voice->SetOutputMatrix(voice->m_fadeInfo.panning);
+                voice->m_tempFlush = 0;
+                voice->SourceVoice->Stop();
+                voice->SourceVoice->FlushSourceBuffers();
             }
         }
-        while (voice->m_fading && voice->SourceVoice && voice->BankData && (
-            voice->m_fadeInfo.volumeRate != 0 ||
-            (voice->m_fadeInfo.speedRate != 0 && !voice->m_fadeInfo.pause && !voice->m_fadeInfo.stop) ||
-            (voice->m_fadeInfo.panningRate != 0 && !voice->m_fadeInfo.pause && !voice->m_fadeInfo.stop)));
-
-        if (!voice->m_fading)
-            return;
-
-        if (voice->m_fadeInfo.volumeRate == 0 && voice->m_fadeInfo.speedRate == 0 && voice->m_fadeInfo.panningRate == 0)
-        {
-            Log(voice->BankID, voice->VoiceID, "[Fade] Fading complete");
-        }
-
-        if (voice->m_fadeInfo.pause)
-        {
-            Log(voice->BankID, voice->VoiceID, "[Fade] Pausing");
-            voice->SourceVoice->Stop();
-            voice->m_fadeInfo.pause = false;
-        }
-
-        if (voice->m_fadeInfo.stop && voice->m_fadeInfo.volumeRate == 0)
-        {
-            Log(voice->BankID, voice->VoiceID, "[Fade] Stopping");
-            voice->IsPlaying = true;
-            voice->Stop();
-        }
-        voice->m_fading = false;
     }
 
-    void AudioVoice::FadeVolume(const FLOAT target, const FLOAT duration)
+    void AudioVoice::OnFadeSpeed(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
     {
-        m_fadeInfo.volumeTarget = target;
-        if (m_fading)
-        {
-            m_fadeInfo.volumeRate = GetRate(m_fadeInfo.volume, m_fadeInfo.volumeTarget, duration);
-        }
-        else
-        {
-            m_fading = true;
-            m_fadeInfo.volumeRate = GetRate(Volume, m_fadeInfo.volumeTarget, duration);
-            m_fadeInfo.volume = Volume;
-            thread fade(Fade, this);
-            fade.detach();
-        }
+        AudioVoice* voice = (AudioVoice*)context;
+        voice->Speed = newValues[0];
+        voice->SourceVoice->SetFrequencyRatio(newValues[0]);
+
+        if (hasFinished)
+            voice->m_speedFadeID = 0;
     }
 
-    void AudioVoice::FadeSpeed(const FLOAT target, const FLOAT duration)
+    void AudioVoice::OnFadePanning(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
     {
-        m_fadeInfo.speedTarget = target;
-        if (m_fading)
-        {
-            m_fadeInfo.speedRate = GetRate(m_fadeInfo.speed, m_fadeInfo.speedTarget, duration);
-        }
-        else
-        {
-            m_fading = true;
-            m_fadeInfo.speedRate = GetRate(Speed, m_fadeInfo.speedTarget, duration);
-            m_fadeInfo.speed = Speed;
-            thread fade(Fade, this);
-            fade.detach();
-        }
-    }
+        AudioVoice* voice = (AudioVoice*)context;
+        voice->Panning = newValues[0];
+        voice->SetOutputMatrix(newValues[0]);
 
-    void AudioVoice::FadePanning(const FLOAT target, const FLOAT duration)
-    {
-        m_fadeInfo.panningTarget = target;
-        if (m_fading)
-        {
-            m_fadeInfo.panningRate = GetRate(m_fadeInfo.panning, m_fadeInfo.panningTarget, duration);
-        }
-        else
-        {
-            m_fading = true;
-            m_fadeInfo.panningRate = GetRate(Panning, m_fadeInfo.panningTarget, duration);
-            m_fadeInfo.panning = Panning;
-            thread fade(Fade, this);
-            fade.detach();
-        }
+        if (hasFinished)
+            voice->m_panningFadeID = 0;
     }
 
     void __stdcall AudioVoice::OnBufferEnd(void* pBufferContext)

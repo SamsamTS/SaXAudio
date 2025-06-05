@@ -33,17 +33,19 @@ namespace SaXAudio
     private:
         static const INT32 INTERVAL = 10;
         Fader() = default;
-        ~Fader();
 
         struct FaderData
         {
+            UINT32 index = 0;
+            BOOL hasFinished = false;
+
             BOOL paused = false;
             UINT32 count = 0;
             FLOAT* current = nullptr;
             FLOAT* target = nullptr;
             FLOAT* rate = nullptr;
-            OnFadeCallback onFade;
-            void* context;
+            OnFadeCallback onFade = nullptr;
+            void* context = nullptr;
         };
         unordered_map<UINT32, FaderData> m_jobs;
         UINT32 m_jobsCounter = 1;

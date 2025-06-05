@@ -605,6 +605,7 @@ namespace SaXAudio
                 {
                     // Pause
                     voice->SourceVoice->Stop();
+                    Log(voice->BankID, voice->VoiceID, "[OnFadeVolume] Pause");
                 }
                 else
                 {
@@ -612,6 +613,7 @@ namespace SaXAudio
                     Fader::Instance.ResumeFade(voice->m_volumeFadeID);
                     Fader::Instance.ResumeFade(voice->m_speedFadeID);
                     Fader::Instance.ResumeFade(voice->m_panningFadeID);
+                    Log(voice->BankID, voice->VoiceID, "[OnFadeVolume] Resume");
                 }
             }
             else
@@ -624,6 +626,7 @@ namespace SaXAudio
                 voice->m_tempFlush = 0;
                 voice->SourceVoice->Stop();
                 voice->SourceVoice->FlushSourceBuffers();
+                Log(voice->BankID, voice->VoiceID, "[OnFadeVolume] Stop");
             }
         }
     }

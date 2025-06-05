@@ -21,21 +21,11 @@
 // SOFTWARE.
 
 #include "Fader.h"
+#include "AudioVoice.h"
 
 namespace SaXAudio
 {
     Fader& Fader::Instance = Fader::getInstance();
-
-    Fader::~Fader()
-    {
-        lock_guard<mutex> lock(Instance.m_jobsMutex);
-        for (auto it = m_jobs.begin(); it != m_jobs.end(); it = m_jobs.erase(it))
-        {
-            delete it->second.current;
-            delete it->second.target;
-            delete it->second.rate;
-        }
-    }
 
     inline FLOAT MoveToTarget(const FLOAT start, const FLOAT end, const FLOAT rate)
     {
@@ -64,37 +54,39 @@ namespace SaXAudio
             auto target_time = start + (interval * count);
             this_thread::sleep_until(target_time);
 
-            lock_guard<mutex> lock(Instance.m_jobsMutex);
-
-            if (!Instance.m_running || Instance.m_jobs.empty())
-                break;
-
-            for (auto it = Instance.m_jobs.begin(); it != Instance.m_jobs.end();)
+            queue<FaderData> callbackQueue;
             {
-                if (it->second.paused)
-                    continue;
+                lock_guard<mutex> lock(Instance.m_jobsMutex);
 
-                BOOL hasFinished = true;
-                for (UINT32 i = 0; i < it->second.count; i++)
+                if (!Instance.m_running || Instance.m_jobs.empty())
+                    break;
+
+                for (auto it = Instance.m_jobs.begin(); it != Instance.m_jobs.end(); it++)
                 {
-                    it->second.current[i] = MoveToTarget(it->second.current[i], it->second.target[i], it->second.rate[i]);
+                    if (it->second.paused || it->second.hasFinished)
+                        continue;
 
-                    if (it->second.current[i] != it->second.target[i])
-                        hasFinished = false;
+                    it->second.hasFinished = true;
+                    for (UINT32 i = 0; i < it->second.count; i++)
+                    {
+                        it->second.current[i] = MoveToTarget(it->second.current[i], it->second.target[i], it->second.rate[i]);
+
+                        if (it->second.current[i] != it->second.target[i])
+                            it->second.hasFinished = false;
+                    }
+
+                    callbackQueue.push(it->second);
                 }
+            }
 
-                it->second.onFade(it->second.context, it->second.count, it->second.current, hasFinished);
-
-                if (hasFinished)
+            while (!callbackQueue.empty())
+            {
+                FaderData data = callbackQueue.front();
+                callbackQueue.pop();
+                data.onFade(data.context, data.count, data.current, data.hasFinished);
+                if (data.hasFinished)
                 {
-                    delete it->second.current;
-                    delete it->second.target;
-                    delete it->second.rate;
-                    it = Instance.m_jobs.erase(it);
-                }
-                else
-                {
-                    it++;
+                    Instance.StopFade(data.index);
                 }
             }
         }
@@ -111,12 +103,15 @@ namespace SaXAudio
     UINT32 Fader::StartFadeMulti(const UINT32 count, FLOAT* currentValues, FLOAT* targets, const FLOAT duration, const OnFadeCallback onFade, void* context)
     {
         lock_guard<mutex> lock(m_jobsMutex);
+
         FLOAT* rates = new FLOAT[count];
         for (UINT32 i = 0; i < count; i++)
         {
             rates[i] = ((targets[i] - currentValues[i]) / (duration * 1000.0f / INTERVAL));
         }
-        m_jobs[m_jobsCounter++] = {
+        m_jobs[m_jobsCounter] = {
+            m_jobsCounter,
+            false,
             false,
             count,
             currentValues,
@@ -130,11 +125,12 @@ namespace SaXAudio
             m_thread = make_unique<thread>(DoFade);
             m_thread->detach();
         }
-        return m_jobsCounter - 1;
+        return m_jobsCounter++;
     }
 
     void Fader::StopFade(const UINT32 fadeID)
     {
+        if (fadeID == 0) return;
         lock_guard<mutex> lock(m_jobsMutex);
 
         auto it = m_jobs.find(fadeID);
@@ -149,6 +145,9 @@ namespace SaXAudio
 
     void Fader::PauseFade(const UINT32 fadeID)
     {
+        if (fadeID == 0) return;
+        lock_guard<mutex> lock(m_jobsMutex);
+
         auto it = m_jobs.find(fadeID);
         if (it == m_jobs.end())
             return;
@@ -158,6 +157,9 @@ namespace SaXAudio
 
     void Fader::ResumeFade(const UINT32 fadeID)
     {
+        if (fadeID == 0) return;
+        lock_guard<mutex> lock(m_jobsMutex);
+
         auto it = m_jobs.find(fadeID);
         if (it == m_jobs.end())
             return;

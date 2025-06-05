@@ -88,7 +88,7 @@ namespace SaXAudio
         void __stdcall OnVoiceProcessingPassStart(UINT32) override {}
         void __stdcall OnVoiceProcessingPassEnd() override {}
         void __stdcall OnStreamEnd() override {}
-        void __stdcall OnBufferStart(void*) override { IsPlaying = true; }
+        void __stdcall OnBufferStart(void*) override {}
         void __stdcall OnLoopEnd(void*) override {}
         void __stdcall OnVoiceError(void*, HRESULT) override {}
 

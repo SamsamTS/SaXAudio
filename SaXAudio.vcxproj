@@ -171,9 +171,16 @@ copy /y "$(OutputPath)$(TargetFileName)" "D:\Projects\Memoria\Assembly-CSharp\Gl
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="AudioVoice.h" />
+    <ClInclude Include="Exports.h" />
+    <ClInclude Include="Includes.h" />
     <ClInclude Include="SaXAudio.h" />
+    <ClInclude Include="Structs.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AudioVoice.cpp" />
+    <ClCompile Include="Exports.cpp" />
+    <ClCompile Include="Logging.cpp" />
     <ClCompile Include="SaXAudio.cpp" />
     <ClCompile Include="stb_vorbis.c" />
   </ItemGroup>

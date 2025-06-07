@@ -42,8 +42,10 @@ namespace SaXAudio
         IXAudio2SubmixVoice* voice = nullptr;
     };
 
-    struct AudioData
+    struct BankData
     {
+        INT32 bankID;
+
         FLOAT* buffer = nullptr;
         UINT32 size = 0;
         OnDecodedCallback onDecodedCallback = nullptr;

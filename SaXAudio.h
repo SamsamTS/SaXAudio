@@ -37,7 +37,7 @@ namespace SaXAudio
         IXAudio2* m_XAudio = nullptr;
         IXAudio2MasteringVoice* m_masteringVoice = nullptr;
 
-        unordered_map<INT32, AudioData*> m_bank;
+        unordered_map<INT32, BankData> m_bank;
         INT32 m_bankCounter = 0;
         mutex m_bankMutex;
 
@@ -76,8 +76,8 @@ namespace SaXAudio
         void ResumeAll(const FLOAT fade);
         void Protect(const INT32 voiceID);
 
-        INT32 Add(AudioData* data);
-        void Remove(const INT32 bankID);
+        BankData* AddBankEntry();
+        void RemoveBankEntry(const INT32 bankID);
 
         INT32 AddBus();
         void RemoveBus(const INT32 busID);

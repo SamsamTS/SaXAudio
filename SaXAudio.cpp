@@ -97,7 +97,7 @@ namespace SaXAudio
         {
             INT32 bankID = it->first;
             it++;
-            Remove(bankID);
+            RemoveBankEntry(bankID);
         }
         StopLogging();
         m_masteringVoice = nullptr;
@@ -162,21 +162,20 @@ namespace SaXAudio
         }
     }
 
-    INT32 SaXAudio::Add(AudioData* data)
+    BankData* SaXAudio::AddBankEntry()
     {
         lock_guard<mutex> lock(m_bankMutex);
 
-        Log(m_bankCounter, -1, "[Add]");
-
-        m_bank[m_bankCounter++] = data;
-        return m_bankCounter - 1;
+        Log(m_bankCounter, -1, "[AddBankEntry]");
+        m_bank[m_bankCounter].bankID = m_bankCounter;
+        return &m_bank[m_bankCounter++];
     }
 
-    void SaXAudio::Remove(const INT32 bankID)
+    void SaXAudio::RemoveBankEntry(const INT32 bankID)
     {
         lock_guard<mutex> lock(m_bankMutex);
 
-        Log(bankID, -1, "[Remove]");
+        Log(bankID, -1, "[RemoveBankEntry]");
 
         // Delete all voices using that bankID
         for (auto& it : m_voices)
@@ -188,20 +187,14 @@ namespace SaXAudio
         auto it = m_bank.find(bankID);
         if (it != m_bank.end())
         {
-            AudioData* data = it->second;
+            BankData* data = &it->second;
             // Free the audio buffer
             if (data->buffer)
             {
                 delete data->buffer;
                 data->buffer = nullptr;
             }
-
-            // If the decoding is still happening we don't want to delete the data yet
-            if (data->decodedSamples == data->totalSamples)
-            {
-                delete data;
-                m_bank.erase(bankID);
-            }
+            m_bank.erase(bankID);
         }
     }
 
@@ -218,22 +211,21 @@ namespace SaXAudio
             return -1;
         }
 
-        BusData data;
-        data.voice = bus;
-        data.effectChain = { 3, nullptr };
-        data.descriptors[0] = { nullptr, false, SaXAudio::m_masterDetails.InputChannels };
-        data.descriptors[1] = { nullptr, false, SaXAudio::m_masterDetails.InputChannels };
-        data.descriptors[2] = { nullptr, false, SaXAudio::m_masterDetails.InputChannels };
+        BusData* data = &m_buses[m_busCounter];
+        data->voice = bus;
+        data->effectChain = { 3, nullptr };
+        data->descriptors[0] = { nullptr, false, SaXAudio::m_masterDetails.InputChannels };
+        data->descriptors[1] = { nullptr, false, SaXAudio::m_masterDetails.InputChannels };
+        data->descriptors[2] = { nullptr, false, SaXAudio::m_masterDetails.InputChannels };
 
-        m_buses[m_busCounter++] = data;
-        return m_busCounter - 1;
+        return m_busCounter++;
     }
 
     void SaXAudio::RemoveBus(const INT32 busID)
     {
         lock_guard<mutex> lock(m_busMutex);
 
-        Log(-1, -1, "[Remove] " + to_string(busID));
+        Log(-1, -1, "[RemoveBankEntry] " + to_string(busID));
 
         // TODO: Delete all voices on that bus? Or do they get cleaned up automatically?
 
@@ -253,10 +245,10 @@ namespace SaXAudio
         if (!vorbis)
             return FALSE;
 
-        AudioData* data = nullptr;
+        BankData* data = nullptr;
         auto it = m_bank.find(bankID);
         if (it != m_bank.end())
-            data = it->second;
+            data = &it->second;
         if (data)
         {
             // Get file info
@@ -281,11 +273,11 @@ namespace SaXAudio
         lock_guard<mutex> buslock(m_busMutex);
         lock_guard<mutex> voicelock(m_voiceMutex);
 
-        AudioData* data = nullptr;
+        BankData* data = nullptr;
 
         auto it = m_bank.find(bankID);
         if (it != m_bank.end())
-            data = it->second;
+            data = &it->second;
 
         if (!data)
         {
@@ -487,7 +479,7 @@ namespace SaXAudio
         auto it = SaXAudio::Instance.m_bank.find(bankID);
         if (it != SaXAudio::Instance.m_bank.end())
         {
-            AudioData* data = it->second;
+            BankData* data = &it->second;
             if (data)
             {
                 data->decodedSamples = 0;
@@ -502,46 +494,30 @@ namespace SaXAudio
 
             lock_guard<mutex> lock(SaXAudio::Instance.m_bankMutex);
 
-            AudioData* data = nullptr;
+            BankData* data = nullptr;
             it = SaXAudio::Instance.m_bank.find(bankID);
             if (it != SaXAudio::Instance.m_bank.end())
-                data = it->second;
+                data = &it->second;
 
-            if (data)
+            if (!data) break;
+
             {
-                if (data->buffer)
+                lock_guard<mutex> lock(data->decodingMutex);
+
+                // Read samples
+                FLOAT* pBuffer = &data->buffer[data->decodedSamples * data->channels];
+                UINT32 decoded = stb_vorbis_get_samples_float_interleaved(vorbis, data->channels, pBuffer, bufferSize * data->channels);
+                samplesDecoded += decoded;
+                data->decodedSamples = samplesDecoded;
+
+                if (decoded == 0)
                 {
-                    lock_guard<mutex> lock(data->decodingMutex);
-
-                    // Read samples
-                    FLOAT* pBuffer = &data->buffer[data->decodedSamples * data->channels];
-                    UINT32 decoded = stb_vorbis_get_samples_float_interleaved(vorbis, data->channels, pBuffer, bufferSize * data->channels);
-                    samplesDecoded += decoded;
-                    data->decodedSamples = samplesDecoded;
-
-                    if (decoded == 0)
-                    {
-                        // Less samples decoded than expected
-                        // we update the total samples to match
-                        data->totalSamples = samplesDecoded;
-                    }
-
-                    data->decodingPerform.notify_one();
+                    // Less samples decoded than expected
+                    // we update the total samples to match
+                    data->totalSamples = samplesDecoded;
                 }
-                else
-                {
-                    // Removed from the bank while still decoding
-                    delete data;
-                    SaXAudio::Instance.m_bank.erase(bankID);
-                    break;
-                }
-            }
-            else
-            {
-                // Something is wrong
-                samplesTotal = 0;
-                Log(bankID, -1, "[DecodeOgg] Data is missing");
-                break;
+
+                data->decodingPerform.notify_one();
             }
         }
 
@@ -552,10 +528,10 @@ namespace SaXAudio
             // Calling back
             lock_guard<mutex> lock(SaXAudio::Instance.m_bankMutex);
 
-            AudioData* data = nullptr;
+            BankData* data = nullptr;
             it = SaXAudio::Instance.m_bank.find(bankID);
             if (it != SaXAudio::Instance.m_bank.end())
-                data = it->second;
+                data = &it->second;
             if (data) (*data->onDecodedCallback)(bankID);
         }
 

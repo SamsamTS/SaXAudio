@@ -78,17 +78,17 @@ namespace SaXAudio
 
     EXPORT INT32 BankAddOgg(const BYTE* buffer, const UINT32 length, const OnDecodedCallback callback)
     {
-        AudioData* data = new AudioData;
+        BankData* data = SaXAudio::Instance.AddBankEntry();
+        if (!data) return -1;
+
         data->onDecodedCallback = callback;
-        INT32 bankID = SaXAudio::Instance.Add(data);
-        if (bankID >= 0)
-            SaXAudio::Instance.StartDecodeOgg(bankID, buffer, length);
-        return bankID;
+        SaXAudio::Instance.StartDecodeOgg(data->bankID, buffer, length);
+        return data->bankID;
     }
 
     EXPORT void BankRemove(const INT32 bankID)
     {
-        SaXAudio::Instance.Remove(bankID);
+        SaXAudio::Instance.RemoveBankEntry(bankID);
     }
 
     EXPORT INT32 CreateVoice(const INT32 bankID, const INT32 busID, const BOOL paused)

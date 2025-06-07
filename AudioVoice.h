@@ -43,7 +43,7 @@ namespace SaXAudio
 
         atomic<UINT32> m_tempFlush = 0;
     public:
-        AudioData* BankData = nullptr;
+        BankData* BankData = nullptr;
         IXAudio2SourceVoice* SourceVoice = nullptr;
         XAUDIO2_BUFFER Buffer = { 0 };
 

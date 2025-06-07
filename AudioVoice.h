@@ -95,8 +95,8 @@ namespace SaXAudio
     private:
         static void WaitForDecoding(AudioVoice* voice);
 
-        static void OnFadeVolume(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
-        static void OnFadeSpeed(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
-        static void OnFadePanning(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
+        static void OnFadeVolume(INT32 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished);
+        static void OnFadeSpeed(INT32 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished);
+        static void OnFadePanning(INT32 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished);
     };
 }

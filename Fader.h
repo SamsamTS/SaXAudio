@@ -26,7 +26,7 @@
 
 namespace SaXAudio
 {
-    typedef void (*OnFadeCallback)(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
+    typedef void (*OnFadeCallback)(INT32 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
 
     class Fader
     {
@@ -45,7 +45,7 @@ namespace SaXAudio
             FLOAT* target = nullptr;
             FLOAT* rate = nullptr;
             OnFadeCallback onFade = nullptr;
-            void* context = nullptr;
+            INT32 context = -1;
         };
         unordered_map<UINT32, FaderData> m_jobs;
         UINT32 m_jobsCounter = 1;
@@ -67,8 +67,8 @@ namespace SaXAudio
     public:
         static Fader& Instance;
 
-        UINT32 StartFade(FLOAT currentValue, FLOAT target, const FLOAT duration, const OnFadeCallback onFade, void* context);
-        UINT32 StartFadeMulti(const UINT32 count, FLOAT* currentValues, FLOAT* targets, const FLOAT duration, const OnFadeCallback onFade, void* context);
+        UINT32 StartFade(FLOAT currentValue, FLOAT target, const FLOAT duration, const OnFadeCallback onFade, INT32 context);
+        UINT32 StartFadeMulti(const UINT32 count, FLOAT* currentValues, FLOAT* targets, const FLOAT duration, const OnFadeCallback onFade, INT32 context);
         void StopFade(const UINT32 fadeID);
         void PauseFade(const UINT32 fadeID);
         void ResumeFade(const UINT32 fadeID);

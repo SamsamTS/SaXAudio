@@ -95,12 +95,12 @@ namespace SaXAudio
         Instance.m_running = false;
     }
 
-    UINT32 Fader::StartFade(FLOAT currentValue, FLOAT target, const FLOAT duration, const OnFadeCallback onFade, void* context)
+    UINT32 Fader::StartFade(FLOAT currentValue, FLOAT target, const FLOAT duration, const OnFadeCallback onFade, INT32 context)
     {
         return StartFadeMulti(1, new FLOAT[1] { currentValue }, new FLOAT[1] { target }, duration, onFade, context);
     }
 
-    UINT32 Fader::StartFadeMulti(const UINT32 count, FLOAT* currentValues, FLOAT* targets, const FLOAT duration, const OnFadeCallback onFade, void* context)
+    UINT32 Fader::StartFadeMulti(const UINT32 count, FLOAT* currentValues, FLOAT* targets, const FLOAT duration, const OnFadeCallback onFade, INT32 context)
     {
         lock_guard<mutex> lock(m_jobsMutex);
 

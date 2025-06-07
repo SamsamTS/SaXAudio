@@ -137,7 +137,7 @@ namespace SaXAudio
         {
             FLOAT current = 1.0f;
             SourceVoice->GetVolume(&current);
-            m_volumeFadeID = Fader::Instance.StartFade(current, 0, fade, OnFadeVolume, (void*)this);
+            m_volumeFadeID = Fader::Instance.StartFade(current, 0, fade, OnFadeVolume, VoiceID);
             if (m_pauseStack > 0)
                 Fader::Instance.PauseFade(m_volumeFadeID);
         }
@@ -169,7 +169,7 @@ namespace SaXAudio
         {
             FLOAT current = 1.0f;
             SourceVoice->GetVolume(&current);
-            m_pauseFadeID = Fader::Instance.StartFade(current, 0, fade, OnFadeVolume, (void*)this);
+            m_pauseFadeID = Fader::Instance.StartFade(current, 0, fade, OnFadeVolume, VoiceID);
         }
         else
         {
@@ -197,7 +197,7 @@ namespace SaXAudio
         {
             FLOAT current = 0.0f;
             SourceVoice->GetVolume(&current);
-            m_pauseFadeID = Fader::Instance.StartFade(current, Volume, fade, OnFadeVolume, (void*)this);
+            m_pauseFadeID = Fader::Instance.StartFade(current, Volume, fade, OnFadeVolume, VoiceID);
         }
         else
         {
@@ -310,7 +310,7 @@ namespace SaXAudio
         {
             FLOAT current = 1.0f;
             SourceVoice->GetVolume(&current);
-            m_volumeFadeID = Fader::Instance.StartFade(current, volume, fade, OnFadeVolume, (void*)this);
+            m_volumeFadeID = Fader::Instance.StartFade(current, volume, fade, OnFadeVolume, VoiceID);
             if (m_pauseStack > 0)
                 Fader::Instance.PauseFade(m_volumeFadeID);
         }
@@ -336,7 +336,7 @@ namespace SaXAudio
 
         if (fade > 0)
         {
-            m_speedFadeID = Fader::Instance.StartFade(Speed, speed, fade, OnFadeSpeed, (void*)this);
+            m_speedFadeID = Fader::Instance.StartFade(Speed, speed, fade, OnFadeSpeed, VoiceID);
             if (m_pauseStack > 0)
                 Fader::Instance.PauseFade(m_speedFadeID);
         }
@@ -357,7 +357,7 @@ namespace SaXAudio
 
         if (fade > 0)
         {
-            m_panningFadeID = Fader::Instance.StartFade(Panning, panning, fade, OnFadePanning, (void*)this);
+            m_panningFadeID = Fader::Instance.StartFade(Panning, panning, fade, OnFadePanning, VoiceID);
             if (m_pauseStack > 0)
                 Fader::Instance.PauseFade(m_panningFadeID);
         }
@@ -589,9 +589,10 @@ namespace SaXAudio
         IsPlaying = false;
     }
 
-    void AudioVoice::OnFadeVolume(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    void AudioVoice::OnFadeVolume(INT32 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished)
     {
-        AudioVoice* voice = (AudioVoice*)context;
+        AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
+        if (!voice) return;
         voice->SourceVoice->SetVolume(newValues[0]);
 
         if (hasFinished)
@@ -631,9 +632,10 @@ namespace SaXAudio
         }
     }
 
-    void AudioVoice::OnFadeSpeed(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    void AudioVoice::OnFadeSpeed(INT32 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished)
     {
-        AudioVoice* voice = (AudioVoice*)context;
+        AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
+        if (!voice) return;
         voice->Speed = newValues[0];
         voice->SourceVoice->SetFrequencyRatio(newValues[0]);
 
@@ -641,9 +643,10 @@ namespace SaXAudio
             voice->m_speedFadeID = 0;
     }
 
-    void AudioVoice::OnFadePanning(void* context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    void AudioVoice::OnFadePanning(INT32 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished)
     {
-        AudioVoice* voice = (AudioVoice*)context;
+        AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
+        if (!voice) return;
         voice->Panning = newValues[0];
         voice->SetOutputMatrix(newValues[0]);
 

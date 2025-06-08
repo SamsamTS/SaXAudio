@@ -25,6 +25,8 @@
 
 namespace SaXAudio
 {
+#define GetEntry(data, map, id) nullptr; auto it_##data = map.find(id); if (it_##data != map.end()) data = &it_##data->second
+
     SaXAudio& SaXAudio::Instance = SaXAudio::getInstance();
 
     BOOL SaXAudio::Init()
@@ -163,13 +165,14 @@ namespace SaXAudio
         }
     }
 
-    BankData* SaXAudio::AddBankEntry()
+    INT32 SaXAudio::AddBankEntry(const OnDecodedCallback callback)
     {
         lock_guard<mutex> lock(m_bankMutex);
 
         Log(m_bankCounter, -1, "[AddBankEntry]");
-        m_bank[m_bankCounter].bankID = m_bankCounter;
-        return &m_bank[m_bankCounter++];
+
+        m_bank[m_bankCounter].onDecodedCallback = callback;
+        return m_bankCounter++;
     }
 
     void SaXAudio::RemoveBankEntry(const INT32 bankID)
@@ -185,18 +188,21 @@ namespace SaXAudio
                 RemoveVoice(it.first);
         }
 
-        auto it = m_bank.find(bankID);
-        if (it != m_bank.end())
+        BankData* data = GetEntry(data, m_bank, bankID);
+        if (!data) return;
+
+        // Free the audio buffer
+        if (data->buffer)
         {
-            BankData* data = &it->second;
-            // Free the audio buffer
-            if (data->buffer)
-            {
-                delete data->buffer;
-                data->buffer = nullptr;
-            }
-            m_bank.erase(bankID);
+            delete data->buffer;
+            data->buffer = nullptr;
         }
+        if (data->onDecodedCallback)
+        {
+            (*data->onDecodedCallback)(bankID);
+            data->onDecodedCallback = nullptr;
+        }
+        m_bank.erase(bankID);
     }
 
     INT32 SaXAudio::AddBus()
@@ -230,12 +236,19 @@ namespace SaXAudio
 
         // TODO: Delete all voices on that bus? Or do they get cleaned up automatically?
 
-        auto it = m_buses.find(busID);
-        if (it != m_buses.end())
+        BusData* bus = GetEntry(bus, m_buses, busID);
+        if (bus)
         {
-            it->second.voice->DestroyVoice();
+            bus->voice->DestroyVoice();
             m_buses.erase(busID);
         }
+    }
+
+    BusData* SaXAudio::GetBus(const INT32 busID)
+    {
+        lock_guard<mutex> lock(m_busMutex);
+        BusData* bus = GetEntry(bus, m_buses, busID);
+        return bus;
     }
 
     BOOL SaXAudio::StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length)
@@ -246,26 +259,22 @@ namespace SaXAudio
         if (!vorbis)
             return FALSE;
 
-        BankData* data = nullptr;
-        auto it = m_bank.find(bankID);
-        if (it != m_bank.end())
-            data = &it->second;
-        if (data)
-        {
-            // Get file info
-            stb_vorbis_info info = stb_vorbis_get_info(vorbis);
-            data->channels = info.channels;
-            data->sampleRate = info.sample_rate;
+        lock_guard<mutex> banklock(m_bankMutex);
+        BankData* data = GetEntry(data, m_bank, bankID);
+        if (!data) return FALSE;
 
-            // Get total samples count and allocate the buffer
-            data->totalSamples = stb_vorbis_stream_length_in_samples(vorbis);
-            data->buffer = new FLOAT[data->totalSamples * data->channels];
+        // Get file info
+        stb_vorbis_info info = stb_vorbis_get_info(vorbis);
+        data->channels = info.channels;
+        data->sampleRate = info.sample_rate;
 
-            thread decode(DecodeOgg, bankID, vorbis);
-            decode.detach();
-        }
+        // Get total samples count and allocate the buffer
+        data->totalSamples = stb_vorbis_stream_length_in_samples(vorbis);
+        data->buffer = new FLOAT[data->totalSamples * data->channels];
 
-        return data != nullptr;
+        thread decode(DecodeOgg, bankID, vorbis);
+        decode.detach();
+        return TRUE;
     }
 
     AudioVoice* SaXAudio::CreateVoice(const INT32 bankID, const INT32 busID)
@@ -274,16 +283,8 @@ namespace SaXAudio
         lock_guard<mutex> buslock(m_busMutex);
         lock_guard<mutex> voicelock(m_voiceMutex);
 
-        BankData* data = nullptr;
-
-        auto it = m_bank.find(bankID);
-        if (it != m_bank.end())
-            data = &it->second;
-
-        if (!data)
-        {
-            return nullptr;
-        }
+        BankData* data = GetEntry(data, m_bank, bankID);
+        if (!data) return nullptr;
 
         // Set up audio format
         WAVEFORMATEX wfx = { 0 };
@@ -313,13 +314,7 @@ namespace SaXAudio
             voice = new AudioVoice;
         }
 
-        IXAudio2SubmixVoice* bus = nullptr;
-        if (busID >= 0)
-        {
-            auto it = m_buses.find(busID);
-            if (it != m_buses.end())
-                bus = it->second.voice;
-        }
+        BusData* bus = GetEntry(bus, m_buses, busID);
 
         voice->EffectData.effectChain = { 3, voice->EffectData.descriptors };
         voice->EffectData.descriptors[0] = { nullptr, false, data->channels };
@@ -344,20 +339,21 @@ namespace SaXAudio
             Log(bankID, m_voiceCounter, "Failed to create echo effect");
         }
 
-        if (bus)
+        if (bus && bus->voice)
         {
-            XAUDIO2_SEND_DESCRIPTOR sendDesc { 0, bus };
+            XAUDIO2_SEND_DESCRIPTOR sendDesc { 0, bus->voice };
             XAUDIO2_VOICE_SENDS sends { 1, &sendDesc };
 
-            HRESULT hr = m_XAudio->CreateSourceVoice(&voice->SourceVoice, &wfx, 0, XAUDIO2_MAX_FREQ_RATIO, voice, &sends, &voice->EffectData.effectChain);
+            hr = m_XAudio->CreateSourceVoice(&voice->SourceVoice, &wfx, 0, XAUDIO2_MAX_FREQ_RATIO, voice, &sends, &voice->EffectData.effectChain);
         }
         else
         {
-            HRESULT hr = m_XAudio->CreateSourceVoice(&voice->SourceVoice, &wfx, 0, XAUDIO2_MAX_FREQ_RATIO, voice, nullptr, &voice->EffectData.effectChain);
+            hr = m_XAudio->CreateSourceVoice(&voice->SourceVoice, &wfx, 0, XAUDIO2_MAX_FREQ_RATIO, voice, nullptr, &voice->EffectData.effectChain);
         }
 
         if (FAILED(hr))
         {
+            voice->Reset();
             Log(bankID, m_voiceCounter, "Failed to create voice");
             return nullptr;
         }
@@ -384,20 +380,12 @@ namespace SaXAudio
 
     AudioVoice* SaXAudio::GetVoice(const INT32 voiceID)
     {
+        lock_guard<mutex> lock(m_voiceMutex);
         AudioVoice* voice = nullptr;
-        auto it = m_voices.find(voiceID);
-        if (it != m_voices.end() && it->second->BankData)
-            voice = it->second;
+        auto it_voice = m_voices.find(voiceID);
+        if (it_voice != m_voices.end())
+            voice = it_voice->second;
         return voice;
-    }
-
-    BusData* SaXAudio::GetBus(const INT32 busID)
-    {
-        BusData* bus = nullptr;
-        auto it = m_buses.find(busID);
-        if (it != m_buses.end())
-            bus = &it->second;
-        return bus;
     }
 
     inline void GetEffectData(INT32 voiceID, BOOL isBus, IXAudio2Voice** sourceVoice, EffectData** data)
@@ -425,6 +413,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         if (!data->effectChain.pEffectDescriptors)
         {
@@ -548,6 +537,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         if (fade <= 0)
         {
@@ -622,6 +612,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         if (!data->effectChain.pEffectDescriptors)
         {
@@ -686,6 +677,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         if (fade <= 0)
         {
@@ -739,6 +731,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         if (!data->effectChain.pEffectDescriptors)
         {
@@ -798,6 +791,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         if (fade <= 0)
         {
@@ -854,7 +848,8 @@ namespace SaXAudio
             if (it != SaXAudio::Instance.m_bank.end())
                 data = &it->second;
 
-            if (!data) break;
+            // BankEntry removed
+            if (!data || !data->buffer) break;
 
             {
                 lock_guard<mutex> lock(data->decodingMutex);
@@ -883,11 +878,12 @@ namespace SaXAudio
             // Calling back
             lock_guard<mutex> lock(SaXAudio::Instance.m_bankMutex);
 
-            BankData* data = nullptr;
-            it = SaXAudio::Instance.m_bank.find(bankID);
-            if (it != SaXAudio::Instance.m_bank.end())
-                data = &it->second;
-            if (data) (*data->onDecodedCallback)(bankID);
+            BankData* data = GetEntry(data, SaXAudio::Instance.m_bank, bankID);
+            if (data)
+            {
+                (*data->onDecodedCallback)(bankID);
+                data->onDecodedCallback = nullptr;
+            }
         }
 
         Log(bankID, -1, "[DecodeOgg] Decoding complete");
@@ -897,21 +893,23 @@ namespace SaXAudio
     {
         lock_guard<mutex> lock(m_voiceMutex);
 
-        AudioVoice* voice = GetVoice(voiceID);
-        if (voice)
+        AudioVoice* voice = nullptr;
+        auto it_voice = m_voices.find(voiceID);
+        if (it_voice != m_voices.end())
+            voice = it_voice->second;
+        if (!voice) return;
+
+        if (voice->IsPlaying)
         {
-            if (voice->IsPlaying)
-            {
-                Log(voice->BankID, voiceID, "[RemoveVoice] Stopping voice");
-                voice->Stop();
-                // RemoveVoice will be called again by OnBufferEnd
-            }
-            else
-            {
-                voice->SourceVoice->DestroyVoice();
-                voice->Reset();
-                Log(voice->BankID, voiceID, "[RemoveVoice] Deleted voice");
-            }
+            Log(voice->BankID, voiceID, "[RemoveVoice] Stopping voice");
+            voice->Stop();
+            // RemoveVoice will be called again by OnBufferEnd
+        }
+        else
+        {
+            voice->SourceVoice->DestroyVoice();
+            voice->Reset();
+            Log(voice->BankID, voiceID, "[RemoveVoice] Deleted voice");
         }
     }
 
@@ -954,6 +952,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         INT32 i = 0;
         data->reverb.WetDryMix = newValues[i++];
@@ -995,6 +994,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         if (hasFinished)
         {
@@ -1013,6 +1013,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         INT32 i = 0;
         data->eq.FrequencyCenter0 = newValues[i++];
@@ -1043,6 +1044,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         if (hasFinished)
         {
@@ -1061,6 +1063,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         INT32 i = 0;
         data->echo.WetDryMix = newValues[i++];
@@ -1082,6 +1085,7 @@ namespace SaXAudio
         IXAudio2Voice* voice = nullptr;
         EffectData* data = nullptr;
         GetEffectData(voiceID, isBus, &voice, &data);
+        if (!voice) return;
 
         if (hasFinished)
         {

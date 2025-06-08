@@ -76,7 +76,7 @@ namespace SaXAudio
         void ResumeAll(const FLOAT fade);
         void Protect(const INT32 voiceID);
 
-        BankData* AddBankEntry();
+        INT32 AddBankEntry(const OnDecodedCallback callback);
         void RemoveBankEntry(const INT32 bankID);
 
         INT32 AddBus();
@@ -104,10 +104,10 @@ namespace SaXAudio
 
         static void OnFadeReverb(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
         static void OnFadeReverbDisable(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
-         
+
         static void OnFadeEq(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
         static void OnFadeEqDisable(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
-         
+
         static void OnFadeEcho(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
         static void OnFadeEchoDisable(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
     };

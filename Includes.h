@@ -47,6 +47,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <chrono>
+#include <string>
 using namespace std;
 
 #define STB_VORBIS_HEADER_ONLY

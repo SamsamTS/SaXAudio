@@ -321,25 +321,44 @@ namespace SaXAudio
                 bus = it->second.voice;
         }
 
-        HRESULT hr = 0;
+        voice->EffectData.effectChain = { 3, voice->EffectData.descriptors };
+        voice->EffectData.descriptors[0] = { nullptr, false, data->channels };
+        voice->EffectData.descriptors[1] = { nullptr, false, data->channels };
+        voice->EffectData.descriptors[2] = { nullptr, false, data->channels };
+
+        HRESULT hr = XAudio2CreateReverb(&voice->EffectData.descriptors[1].pEffect);
+        if (FAILED(hr))
+        {
+            Log(bankID, m_voiceCounter, "Failed to create reverb effect");
+        }
+
+        hr = CreateFX(__uuidof(FXEQ), &voice->EffectData.descriptors[0].pEffect);
+        if (FAILED(hr))
+        {
+            Log(bankID, m_voiceCounter, "Failed to create EQ effect");
+        }
+
+        hr = CreateFX(__uuidof(FXEcho), &voice->EffectData.descriptors[2].pEffect);
+        if (FAILED(hr))
+        {
+            Log(bankID, m_voiceCounter, "Failed to create echo effect");
+        }
+
         if (bus)
         {
             XAUDIO2_SEND_DESCRIPTOR sendDesc { 0, bus };
             XAUDIO2_VOICE_SENDS sends { 1, &sendDesc };
 
-            HRESULT hr = m_XAudio->CreateSourceVoice(&voice->SourceVoice, &wfx, 0, XAUDIO2_MAX_FREQ_RATIO, voice, &sends, nullptr);
-            if (FAILED(hr))
-            {
-                return nullptr;
-            }
+            HRESULT hr = m_XAudio->CreateSourceVoice(&voice->SourceVoice, &wfx, 0, XAUDIO2_MAX_FREQ_RATIO, voice, &sends, &voice->EffectData.effectChain);
         }
         else
         {
-            HRESULT hr = m_XAudio->CreateSourceVoice(&voice->SourceVoice, &wfx, 0, XAUDIO2_MAX_FREQ_RATIO, voice, nullptr, nullptr);
+            HRESULT hr = m_XAudio->CreateSourceVoice(&voice->SourceVoice, &wfx, 0, XAUDIO2_MAX_FREQ_RATIO, voice, nullptr, &voice->EffectData.effectChain);
         }
 
         if (FAILED(hr))
         {
+            Log(bankID, m_voiceCounter, "Failed to create voice");
             return nullptr;
         }
         voice->BankData = data;

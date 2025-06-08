@@ -33,7 +33,20 @@ namespace SaXAudio
         XAUDIO2_EFFECT_CHAIN effectChain = { 0 };
         XAUDIO2_EFFECT_DESCRIPTOR descriptors[3] = { 0 };
         XAUDIO2FX_REVERB_PARAMETERS reverb = { 0 };
-        FXEQ_PARAMETERS eq = { 0 };
+        FXEQ_PARAMETERS eq = {
+            FXEQ_DEFAULT_FREQUENCY_CENTER_0,
+            FXEQ_DEFAULT_GAIN,
+            FXEQ_DEFAULT_BANDWIDTH,
+            FXEQ_DEFAULT_FREQUENCY_CENTER_1,
+            FXEQ_DEFAULT_GAIN,
+            FXEQ_DEFAULT_BANDWIDTH,
+            FXEQ_DEFAULT_FREQUENCY_CENTER_2,
+            FXEQ_DEFAULT_GAIN,
+            FXEQ_DEFAULT_BANDWIDTH,
+            FXEQ_DEFAULT_FREQUENCY_CENTER_3,
+            FXEQ_DEFAULT_GAIN,
+            FXEQ_DEFAULT_BANDWIDTH
+        };
         FXECHO_PARAMETERS echo = { 0 };
     };
 
@@ -44,7 +57,7 @@ namespace SaXAudio
 
     struct BankData
     {
-        INT32 bankID;
+        INT32 bankID = -1;
 
         FLOAT* buffer = nullptr;
         UINT32 size = 0;

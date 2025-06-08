@@ -219,11 +219,11 @@ namespace SaXAudio
     /// <param name="voiceID"></param>
     /// <param name="reverbParams"></param>
     /// <param name="isBus"></param>
-    EXPORT void SetReverb(const INT32 voiceID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams, BOOL isBus = false);
+    EXPORT void SetReverb(const INT32 voiceID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams, const FLOAT fade = 0, BOOL isBus = false);
     /// <summary>
     /// Remove the reverb effect to a voice or bus
     /// </summary>
-    EXPORT void RemoveReverb(const INT32 voiceID, BOOL isBus = false);
+    EXPORT void RemoveReverb(const INT32 voiceID, const FLOAT fade = 0, BOOL isBus = false);
 
     /// <summary>
     /// Add/Modify the EQ effect to a voice or bus
@@ -231,11 +231,11 @@ namespace SaXAudio
     /// <param name="voiceID"></param>
     /// <param name="eqParams"></param>
     /// <param name="isBus"></param>
-    EXPORT void SetEq(const INT32 voiceID, const FXEQ_PARAMETERS eqParams, BOOL isBus = false);
+    EXPORT void SetEq(const INT32 voiceID, const FXEQ_PARAMETERS eqParams, const FLOAT fade = 0, BOOL isBus = false);
     /// <summary>
     /// Remove the EQ effect to a voice or bus
     /// </summary>
-    EXPORT void RemoveEq(const INT32 voiceID, BOOL isBus = false);
+    EXPORT void RemoveEq(const INT32 voiceID, const FLOAT fade = 0, BOOL isBus = false);
 
     /// <summary>
     /// Add/Modify the echo effect to a voice or bus
@@ -243,11 +243,11 @@ namespace SaXAudio
     /// <param name="voiceID"></param>
     /// <param name="echoParams"></param>
     /// <param name="isBus"></param>
-    EXPORT void SetEcho(const INT32 voiceID, const FXECHO_PARAMETERS echoParams, BOOL isBus = false);
+    EXPORT void SetEcho(const INT32 voiceID, const FXECHO_PARAMETERS echoParams, const FLOAT fade = 0, BOOL isBus = false);
     /// <summary>
     /// Remove the echo effect to a voice or bus
     /// </summary>
-    EXPORT void RemoveEcho(const INT32 voiceID, BOOL isBus = false);
+    EXPORT void RemoveEcho(const INT32 voiceID, const FLOAT fade = 0, BOOL isBus = false);
 
     /// <summary>
     /// Gets the position of the playing voice in samples

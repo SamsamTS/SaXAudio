@@ -589,9 +589,9 @@ namespace SaXAudio
         IsPlaying = false;
     }
 
-    void AudioVoice::OnFadeVolume(INT32 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    void AudioVoice::OnFadeVolume(INT64 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished)
     {
-        AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
+        AudioVoice* voice = SaXAudio::Instance.GetVoice((INT32)voiceID);
         if (!voice) return;
         voice->SourceVoice->SetVolume(newValues[0]);
 
@@ -632,9 +632,9 @@ namespace SaXAudio
         }
     }
 
-    void AudioVoice::OnFadeSpeed(INT32 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    void AudioVoice::OnFadeSpeed(INT64 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished)
     {
-        AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
+        AudioVoice* voice = SaXAudio::Instance.GetVoice((INT32)voiceID);
         if (!voice) return;
         voice->Speed = newValues[0];
         voice->SourceVoice->SetFrequencyRatio(newValues[0]);
@@ -643,9 +643,9 @@ namespace SaXAudio
             voice->m_speedFadeID = 0;
     }
 
-    void AudioVoice::OnFadePanning(INT32 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    void AudioVoice::OnFadePanning(INT64 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished)
     {
-        AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
+        AudioVoice* voice = SaXAudio::Instance.GetVoice((INT32)voiceID);
         if (!voice) return;
         voice->Panning = newValues[0];
         voice->SetOutputMatrix(newValues[0]);

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "SaXAudio.h"
+#include "Fader.h"
 
 namespace SaXAudio
 {
@@ -380,8 +381,32 @@ namespace SaXAudio
         return bus;
     }
 
-    void SaXAudio::SetReverb(IXAudio2Voice* voice, EffectData* data)
+    inline void GetEffectData(INT32 voiceID, BOOL isBus, IXAudio2Voice** sourceVoice, EffectData** data)
     {
+        if (isBus)
+        {
+            BusData* bus = SaXAudio::Instance.GetBus(voiceID);
+            if (!bus || !bus->voice) return;
+
+            *data = bus;
+            *sourceVoice = bus->voice;
+        }
+        else
+        {
+            AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
+            if (!voice || !voice->SourceVoice) return;
+
+            *data = &voice->EffectData;
+            *sourceVoice = voice->SourceVoice;
+        }
+    }
+
+    void SaXAudio::SetReverb(const INT32 voiceID, const BOOL isBus, const XAUDIO2FX_REVERB_PARAMETERS* params, const FLOAT fade)
+    {
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
         if (!data->effectChain.pEffectDescriptors)
         {
             CreateEffectChain(voice, data);
@@ -393,24 +418,192 @@ namespace SaXAudio
             Log(-1, -1, "Failed to enable reverb");
         }
 
-        hr = voice->SetEffectParameters(1, &data->reverb, sizeof(XAUDIO2FX_REVERB_PARAMETERS), XAUDIO2_COMMIT_NOW);
-        if (FAILED(hr))
+        if (fade <= 0)
         {
-            Log(-1, -1, "Failed to set reverb parameters");
+            data->reverb = *params;
+            hr = voice->SetEffectParameters(1, &data->reverb, sizeof(XAUDIO2FX_REVERB_PARAMETERS), XAUDIO2_COMMIT_NOW);
+            if (FAILED(hr))
+            {
+                Log(-1, -1, "Failed to set reverb parameters");
+            }
+            return;
         }
+
+        // Can't quite fade a boolean
+        data->reverb.DisableLateField = params->DisableLateField;
+
+        FLOAT* current = nullptr;
+
+        if (data->reverb.WetDryMix == 0)
+        {
+            current = new FLOAT[23]
+            {
+                data->reverb.WetDryMix,
+                static_cast<FLOAT>(params->ReflectionsDelay),
+                static_cast<FLOAT>(params->ReverbDelay),
+                static_cast<FLOAT>(params->RearDelay),
+                static_cast<FLOAT>(params->SideDelay),
+                static_cast<FLOAT>(params->PositionLeft),
+                static_cast<FLOAT>(params->PositionRight),
+                static_cast<FLOAT>(params->PositionMatrixLeft),
+                static_cast<FLOAT>(params->PositionMatrixRight),
+                static_cast<FLOAT>(params->EarlyDiffusion),
+                static_cast<FLOAT>(params->LateDiffusion),
+                static_cast<FLOAT>(params->LowEQGain),
+                static_cast<FLOAT>(params->LowEQCutoff),
+                static_cast<FLOAT>(params->HighEQGain),
+                static_cast<FLOAT>(params->HighEQCutoff),
+                params->RoomFilterFreq,
+                params->RoomFilterMain,
+                params->RoomFilterHF,
+                params->ReflectionsGain,
+                params->ReverbGain,
+                params->DecayTime,
+                params->Density,
+                params->RoomSize
+            };
+        }
+        else
+        {
+            current = new FLOAT[23]
+            {
+                data->reverb.WetDryMix,
+                static_cast<FLOAT>(data->reverb.ReflectionsDelay),
+                static_cast<FLOAT>(data->reverb.ReverbDelay),
+                static_cast<FLOAT>(data->reverb.RearDelay),
+                static_cast<FLOAT>(data->reverb.SideDelay),
+                static_cast<FLOAT>(data->reverb.PositionLeft),
+                static_cast<FLOAT>(data->reverb.PositionRight),
+                static_cast<FLOAT>(data->reverb.PositionMatrixLeft),
+                static_cast<FLOAT>(data->reverb.PositionMatrixRight),
+                static_cast<FLOAT>(data->reverb.EarlyDiffusion),
+                static_cast<FLOAT>(data->reverb.LateDiffusion),
+                static_cast<FLOAT>(data->reverb.LowEQGain),
+                static_cast<FLOAT>(data->reverb.LowEQCutoff),
+                static_cast<FLOAT>(data->reverb.HighEQGain),
+                static_cast<FLOAT>(data->reverb.HighEQCutoff),
+                data->reverb.RoomFilterFreq,
+                data->reverb.RoomFilterMain,
+                data->reverb.RoomFilterHF,
+                data->reverb.ReflectionsGain,
+                data->reverb.ReverbGain,
+                data->reverb.DecayTime,
+                data->reverb.Density,
+                data->reverb.RoomSize
+            };
+        }
+
+        FLOAT* targets = new FLOAT[23]
+        {
+            params->WetDryMix,
+            static_cast<FLOAT>(params->ReflectionsDelay),
+            static_cast<FLOAT>(params->ReverbDelay),
+            static_cast<FLOAT>(params->RearDelay),
+            static_cast<FLOAT>(params->SideDelay),
+            static_cast<FLOAT>(params->PositionLeft),
+            static_cast<FLOAT>(params->PositionRight),
+            static_cast<FLOAT>(params->PositionMatrixLeft),
+            static_cast<FLOAT>(params->PositionMatrixRight),
+            static_cast<FLOAT>(params->EarlyDiffusion),
+            static_cast<FLOAT>(params->LateDiffusion),
+            static_cast<FLOAT>(params->LowEQGain),
+            static_cast<FLOAT>(params->LowEQCutoff),
+            static_cast<FLOAT>(params->HighEQGain),
+            static_cast<FLOAT>(params->HighEQCutoff),
+            params->RoomFilterFreq,
+            params->RoomFilterMain,
+            params->RoomFilterHF,
+            params->ReflectionsGain,
+            params->ReverbGain,
+            params->DecayTime,
+            params->Density,
+            params->RoomSize
+        };
+
+        INT64 context = isBus ? -voiceID : voiceID;
+        Fader::Instance.StartFadeMulti(23, current, targets, fade, OnFadeReverb, context);
     }
 
-    void SaXAudio::RemoveReverb(IXAudio2Voice* voice, EffectData* data)
+    void SaXAudio::RemoveReverb(const INT32 voiceID, const BOOL isBus, const FLOAT fade)
     {
-        HRESULT hr = voice->DisableEffect(1);
-        if (FAILED(hr))
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
+        if (fade <= 0)
         {
-            Log(-1, -1, "Failed to remove reverb");
+            HRESULT hr = voice->DisableEffect(1);
+            if (FAILED(hr))
+            {
+                Log(-1, -1, "Failed to remove reverb");
+            }
+            return;
         }
+
+        FLOAT* current = new FLOAT[23]
+        {
+            data->reverb.WetDryMix,
+            static_cast<FLOAT>(data->reverb.ReflectionsDelay),
+            static_cast<FLOAT>(data->reverb.ReverbDelay),
+            static_cast<FLOAT>(data->reverb.RearDelay),
+            static_cast<FLOAT>(data->reverb.SideDelay),
+            static_cast<FLOAT>(data->reverb.PositionLeft),
+            static_cast<FLOAT>(data->reverb.PositionRight),
+            static_cast<FLOAT>(data->reverb.PositionMatrixLeft),
+            static_cast<FLOAT>(data->reverb.PositionMatrixRight),
+            static_cast<FLOAT>(data->reverb.EarlyDiffusion),
+            static_cast<FLOAT>(data->reverb.LateDiffusion),
+            static_cast<FLOAT>(data->reverb.LowEQGain),
+            static_cast<FLOAT>(data->reverb.LowEQCutoff),
+            static_cast<FLOAT>(data->reverb.HighEQGain),
+            static_cast<FLOAT>(data->reverb.HighEQCutoff),
+            data->reverb.RoomFilterFreq,
+            data->reverb.RoomFilterMain,
+            data->reverb.RoomFilterHF,
+            data->reverb.ReflectionsGain,
+            data->reverb.ReverbGain,
+            data->reverb.DecayTime,
+            data->reverb.Density,
+            data->reverb.RoomSize
+        };
+
+        FLOAT* targets = new FLOAT[23]
+        {
+            0,
+            static_cast<FLOAT>(data->reverb.ReflectionsDelay),
+            static_cast<FLOAT>(data->reverb.ReverbDelay),
+            static_cast<FLOAT>(data->reverb.RearDelay),
+            static_cast<FLOAT>(data->reverb.SideDelay),
+            static_cast<FLOAT>(data->reverb.PositionLeft),
+            static_cast<FLOAT>(data->reverb.PositionRight),
+            static_cast<FLOAT>(data->reverb.PositionMatrixLeft),
+            static_cast<FLOAT>(data->reverb.PositionMatrixRight),
+            static_cast<FLOAT>(data->reverb.EarlyDiffusion),
+            static_cast<FLOAT>(data->reverb.LateDiffusion),
+            static_cast<FLOAT>(data->reverb.LowEQGain),
+            static_cast<FLOAT>(data->reverb.LowEQCutoff),
+            static_cast<FLOAT>(data->reverb.HighEQGain),
+            static_cast<FLOAT>(data->reverb.HighEQCutoff),
+            data->reverb.RoomFilterFreq,
+            data->reverb.RoomFilterMain,
+            data->reverb.RoomFilterHF,
+            data->reverb.ReflectionsGain,
+            data->reverb.ReverbGain,
+            data->reverb.DecayTime,
+            data->reverb.Density,
+            data->reverb.RoomSize
+        };
+
+        INT64 context = isBus ? -voiceID : voiceID;
+        Fader::Instance.StartFadeMulti(23, current, targets, fade, OnFadeReverbDisable, context);
     }
 
-    void SaXAudio::SetEq(IXAudio2Voice* voice, EffectData* data)
+    void SaXAudio::SetEq(const INT32 voiceID, const BOOL isBus, const FXEQ_PARAMETERS* params, const FLOAT fade)
     {
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
         if (!data->effectChain.pEffectDescriptors)
         {
             CreateEffectChain(voice, data);
@@ -422,24 +615,112 @@ namespace SaXAudio
             Log(-1, -1, "Failed to enable EQ");
         }
 
-        hr = voice->SetEffectParameters(0, &data->eq, sizeof(FXEQ_PARAMETERS), XAUDIO2_COMMIT_NOW);
-        if (FAILED(hr))
+        if (fade <= 0)
         {
-            Log(-1, -1, "Failed to set EQ effect parameters");
+            data->eq = *params;
+            hr = voice->SetEffectParameters(0, &data->eq, sizeof(FXEQ_PARAMETERS), XAUDIO2_COMMIT_NOW);
+            if (FAILED(hr))
+            {
+                Log(-1, -1, "Failed to set EQ effect parameters");
+            }
+            return;
         }
+        Log(-1, -1, "FrequencyCenter0: " + to_string(data->eq.FrequencyCenter0) + " Gain0: " + to_string(data->eq.Gain0));
+        FLOAT* current = new FLOAT[12]
+        {
+            data->eq.FrequencyCenter0,
+            data->eq.Gain0,
+            data->eq.Bandwidth0,
+            data->eq.FrequencyCenter1,
+            data->eq.Gain1,
+            data->eq.Bandwidth1,
+            data->eq.FrequencyCenter2,
+            data->eq.Gain2,
+            data->eq.Bandwidth2,
+            data->eq.FrequencyCenter3,
+            data->eq.Gain3,
+            data->eq.Bandwidth3
+        };
+
+        FLOAT* targets = new FLOAT[12]
+        {
+            params->FrequencyCenter0,
+            params->Gain0,
+            params->Bandwidth0,
+            params->FrequencyCenter1,
+            params->Gain1,
+            params->Bandwidth1,
+            params->FrequencyCenter2,
+            params->Gain2,
+            params->Bandwidth2,
+            params->FrequencyCenter3,
+            params->Gain3,
+            params->Bandwidth3
+        };
+
+        INT64 context = isBus ? -voiceID : voiceID;
+        Fader::Instance.StartFadeMulti(12, current, targets, fade, OnFadeEq, context);
     }
 
-    void SaXAudio::RemoveEq(IXAudio2Voice* voice, EffectData* data)
+    void SaXAudio::RemoveEq(const INT32 voiceID, const BOOL isBus, const FLOAT fade)
     {
-        HRESULT hr = voice->DisableEffect(0);
-        if (FAILED(hr))
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
+        if (fade <= 0)
         {
-            Log(-1, -1, "Failed to remove EQ");
+            HRESULT hr = voice->DisableEffect(0);
+            if (FAILED(hr))
+            {
+                Log(-1, -1, "Failed to remove EQ");
+            }
+            return;
         }
+
+        FLOAT* current = new FLOAT[12]
+        {
+            data->eq.FrequencyCenter0,
+            data->eq.Gain0,
+            data->eq.Bandwidth0,
+            data->eq.FrequencyCenter1,
+            data->eq.Gain1,
+            data->eq.Bandwidth1,
+            data->eq.FrequencyCenter2,
+            data->eq.Gain2,
+            data->eq.Bandwidth2,
+            data->eq.FrequencyCenter3,
+            data->eq.Gain3,
+            data->eq.Bandwidth3
+        };
+
+        EffectData defaultData;
+        FLOAT* targets = new FLOAT[12]
+        {
+            defaultData.eq.FrequencyCenter0,
+            defaultData.eq.Gain0,
+            defaultData.eq.Bandwidth0,
+            defaultData.eq.FrequencyCenter1,
+            defaultData.eq.Gain1,
+            defaultData.eq.Bandwidth1,
+            defaultData.eq.FrequencyCenter2,
+            defaultData.eq.Gain2,
+            defaultData.eq.Bandwidth2,
+            defaultData.eq.FrequencyCenter3,
+            defaultData.eq.Gain3,
+            defaultData.eq.Bandwidth3
+        };
+
+        INT64 context = isBus ? -voiceID : voiceID;
+        Fader::Instance.StartFadeMulti(12, current, targets, fade, OnFadeEqDisable, context);
     }
 
-    void SaXAudio::SetEcho(IXAudio2Voice* voice, EffectData* data)
+    void SaXAudio::SetEcho(const INT32 voiceID, const BOOL isBus, const FXECHO_PARAMETERS* params, const FLOAT fade)
     {
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
         if (!data->effectChain.pEffectDescriptors)
         {
             CreateEffectChain(voice, data);
@@ -451,20 +732,75 @@ namespace SaXAudio
             Log(-1, -1, "Failed to enable echo");
         }
 
-        hr = voice->SetEffectParameters(0, &data->echo, sizeof(FXECHO_PARAMETERS), XAUDIO2_COMMIT_NOW);
-        if (FAILED(hr))
+        if (fade <= 0)
         {
-            Log(-1, -1, "Failed to set echo parameters");
+            data->echo = *params;
+            hr = voice->SetEffectParameters(2, &data->echo, sizeof(FXECHO_PARAMETERS), XAUDIO2_COMMIT_NOW);
+            if (FAILED(hr))
+            {
+                Log(-1, -1, "Failed to set echo parameters");
+            }
+            return;
         }
+
+        FLOAT* current = nullptr;
+        if (data->echo.WetDryMix == 0)
+        {
+            current = new FLOAT[3]
+            {
+                data->echo.WetDryMix,
+                params->Feedback,
+                params->Delay
+            };
+        }
+        else
+        {
+            current = new FLOAT[3]
+            {
+                data->echo.WetDryMix,
+                data->echo.Feedback,
+                data->echo.Delay
+            };
+        }
+
+        FLOAT* targets = new FLOAT[3]
+        {
+            params->WetDryMix,
+            params->Feedback,
+            params->Delay
+        };
+
+        INT64 context = isBus ? -voiceID : voiceID;
+        Fader::Instance.StartFadeMulti(12, current, targets, fade, OnFadeEcho, context);
     }
 
-    void SaXAudio::RemoveEcho(IXAudio2Voice* voice, EffectData* data)
+    void SaXAudio::RemoveEcho(const INT32 voiceID, const BOOL isBus, const FLOAT fade)
     {
-        HRESULT hr = voice->DisableEffect(2);
-        if (FAILED(hr))
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
+        if (fade <= 0)
         {
-            Log(-1, -1, "Failed to remove Eq");
+            HRESULT hr = voice->DisableEffect(2);
+            if (FAILED(hr))
+            {
+                Log(-1, -1, "Failed to remove Eq");
+            }
+            return;
         }
+
+        FLOAT* current = new FLOAT[12]
+        {
+            data->echo.WetDryMix,
+            data->echo.Feedback,
+            data->echo.Delay
+        };
+
+        FLOAT* targets = new FLOAT[12] { 0 };
+
+        INT64 context = isBus ? -voiceID : voiceID;
+        Fader::Instance.StartFadeMulti(3, current, targets, fade, OnFadeEchoDisable, context);
     }
 
     void SaXAudio::DecodeOgg(const INT32 bankID, stb_vorbis* vorbis)
@@ -588,5 +924,152 @@ namespace SaXAudio
         {
             Log(-1, -1, "Failed to set effect chain");
         }
+    }
+
+
+    void SaXAudio::OnFadeReverb(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    {
+        BOOL isBus = context < 0;
+        INT32 voiceID = isBus ? -(INT32)context : (INT32)context;
+
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
+        INT32 i = 0;
+        data->reverb.WetDryMix = newValues[i++];
+        data->reverb.ReflectionsDelay = static_cast<UINT32>(newValues[i++]);
+        data->reverb.ReverbDelay = static_cast<BYTE>(newValues[i++]);
+        data->reverb.RearDelay = static_cast<BYTE>(newValues[i++]);
+        data->reverb.SideDelay = static_cast<BYTE>(newValues[i++]);
+        data->reverb.PositionLeft = static_cast<BYTE>(newValues[i++]);
+        data->reverb.PositionRight = static_cast<BYTE>(newValues[i++]);
+        data->reverb.PositionMatrixLeft = static_cast<BYTE>(newValues[i++]);
+        data->reverb.PositionMatrixRight = static_cast<BYTE>(newValues[i++]);
+        data->reverb.EarlyDiffusion = static_cast<BYTE>(newValues[i++]);
+        data->reverb.LateDiffusion = static_cast<BYTE>(newValues[i++]);
+        data->reverb.LowEQGain = static_cast<BYTE>(newValues[i++]);
+        data->reverb.LowEQCutoff = static_cast<BYTE>(newValues[i++]);
+        data->reverb.HighEQGain = static_cast<BYTE>(newValues[i++]);
+        data->reverb.HighEQCutoff = static_cast<BYTE>(newValues[i++]);
+        data->reverb.RoomFilterFreq = newValues[i++];
+        data->reverb.RoomFilterMain = newValues[i++];
+        data->reverb.RoomFilterHF = newValues[i++];
+        data->reverb.ReflectionsGain = newValues[i++];
+        data->reverb.ReverbGain = newValues[i++];
+        data->reverb.DecayTime = newValues[i++];
+        data->reverb.Density = newValues[i++];
+        data->reverb.RoomSize = newValues[i++];
+
+        HRESULT hr = voice->SetEffectParameters(1, &data->reverb, sizeof(XAUDIO2FX_REVERB_PARAMETERS), XAUDIO2_COMMIT_NOW);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to set reverb parameters");
+        }
+    }
+
+    void SaXAudio::OnFadeReverbDisable(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    {
+        BOOL isBus = context < 0;
+        INT32 voiceID = isBus ? -(INT32)context : (INT32)context;
+
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
+        if (hasFinished)
+        {
+            voice->DisableEffect(1);
+            return;
+        }
+
+        OnFadeReverb(context, count, newValues, hasFinished);
+    }
+
+    void SaXAudio::OnFadeEq(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    {
+        BOOL isBus = context < 0;
+        INT32 voiceID = isBus ? -(INT32)context : (INT32)context;
+
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
+        INT32 i = 0;
+        data->eq.FrequencyCenter0 = newValues[i++];
+        data->eq.Gain0 = newValues[i++];
+        data->eq.Bandwidth0 = newValues[i++];
+        data->eq.FrequencyCenter1 = newValues[i++];
+        data->eq.Gain1 = newValues[i++];
+        data->eq.Bandwidth1 = newValues[i++];
+        data->eq.FrequencyCenter2 = newValues[i++];
+        data->eq.Gain2 = newValues[i++];
+        data->eq.Bandwidth2 = newValues[i++];
+        data->eq.FrequencyCenter3 = newValues[i++];
+        data->eq.Gain3 = newValues[i++];
+        data->eq.Bandwidth3 = newValues[i++];
+
+        HRESULT hr = voice->SetEffectParameters(0, &data->eq, sizeof(FXEQ_PARAMETERS), XAUDIO2_COMMIT_NOW);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to set EQ parameters");
+        }
+    }
+
+    void SaXAudio::OnFadeEqDisable(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    {
+        BOOL isBus = context < 0;
+        INT32 voiceID = isBus ? -(INT32)context : (INT32)context;
+
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
+        if (hasFinished)
+        {
+            voice->DisableEffect(0);
+            return;
+        }
+
+        OnFadeEq(context, count, newValues, hasFinished);
+    }
+
+    void SaXAudio::OnFadeEcho(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    {
+        BOOL isBus = context < 0;
+        INT32 voiceID = isBus ? -(INT32)context : (INT32)context;
+
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
+        INT32 i = 0;
+        data->echo.WetDryMix = newValues[i++];
+        data->echo.Feedback = newValues[i++];
+        data->echo.Delay = newValues[i++];
+
+        HRESULT hr = voice->SetEffectParameters(2, &data->echo, sizeof(FXECHO_PARAMETERS), XAUDIO2_COMMIT_NOW);
+        if (FAILED(hr))
+        {
+            Log(-1, -1, "Failed to set EQ parameters");
+        }
+    }
+
+    void SaXAudio::OnFadeEchoDisable(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    {
+        BOOL isBus = context < 0;
+        INT32 voiceID = isBus ? -(INT32)context : (INT32)context;
+
+        IXAudio2Voice* voice = nullptr;
+        EffectData* data = nullptr;
+        GetEffectData(voiceID, isBus, &voice, &data);
+
+        if (hasFinished)
+        {
+            voice->DisableEffect(2);
+            return;
+        }
+
+        OnFadeEcho(context, count, newValues, hasFinished);
     }
 }

@@ -290,157 +290,34 @@ namespace SaXAudio
         return false;
     }
 
-    EXPORT void SetReverb(const INT32 voiceID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams, BOOL isBus)
+    EXPORT void SetReverb(const INT32 voiceID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams, const FLOAT fade, BOOL isBus)
     {
-        IXAudio2Voice* sourceVoice = nullptr;
-        EffectData* data = nullptr;
-
-        if (isBus)
-        {
-            BusData* bus = SaXAudio::Instance.GetBus(voiceID);
-            if (!bus || !bus->voice) return;
-
-            data = bus;
-            sourceVoice = bus->voice;
-        }
-        else
-        {
-            AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
-            if (!voice || !voice->SourceVoice) return;
-
-            data = &voice->EffectData;
-            sourceVoice = voice->SourceVoice;
-        }
-
-        data->reverb = reverbParams;
-        SaXAudio::Instance.SetReverb(sourceVoice, data);
+        SaXAudio::Instance.SetReverb(voiceID, isBus, &reverbParams, fade);
     }
 
-    EXPORT void RemoveReverb(const INT32 voiceID, BOOL isBus)
+    EXPORT void RemoveReverb(const INT32 voiceID, const FLOAT fade, BOOL isBus)
     {
-        IXAudio2Voice* sourceVoice = nullptr;
-        EffectData* data = nullptr;
-
-        if (isBus)
-        {
-            BusData* bus = SaXAudio::Instance.GetBus(voiceID);
-            if (!bus || !bus->voice) return;
-
-            data = bus;
-            sourceVoice = bus->voice;
-        }
-        else
-        {
-            AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
-            if (!voice || !voice->SourceVoice) return;
-
-            data = &voice->EffectData;
-            sourceVoice = voice->SourceVoice;
-        }
-
-        SaXAudio::Instance.RemoveReverb(sourceVoice, data);
+        SaXAudio::Instance.RemoveReverb(voiceID, isBus, fade);
     }
 
-    EXPORT void SetEq(const INT32 voiceID, const FXEQ_PARAMETERS eqParams, BOOL isBus)
+    EXPORT void SetEq(const INT32 voiceID, const FXEQ_PARAMETERS eqParams, const FLOAT fade, BOOL isBus)
     {
-        IXAudio2Voice* sourceVoice = nullptr;
-        EffectData* data = nullptr;
-
-        if (isBus)
-        {
-            BusData* bus = SaXAudio::Instance.GetBus(voiceID);
-            if (!bus || !bus->voice) return;
-
-            data = bus;
-            sourceVoice = bus->voice;
-        }
-        else
-        {
-            AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
-            if (!voice || !voice->SourceVoice) return;
-
-            data = &voice->EffectData;
-            sourceVoice = voice->SourceVoice;
-        }
-
-        data->eq = eqParams;
-        SaXAudio::Instance.SetEq(sourceVoice, data);
+        SaXAudio::Instance.SetEq(voiceID, isBus, &eqParams, fade);
     }
 
-    EXPORT void RemoveEq(const INT32 voiceID, BOOL isBus)
+    EXPORT void RemoveEq(const INT32 voiceID, const FLOAT fade, BOOL isBus)
     {
-        IXAudio2Voice* sourceVoice = nullptr;
-        EffectData* data = nullptr;
-
-        if (isBus)
-        {
-            BusData* bus = SaXAudio::Instance.GetBus(voiceID);
-            if (!bus || !bus->voice) return;
-
-            data = bus;
-            sourceVoice = bus->voice;
-        }
-        else
-        {
-            AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
-            if (!voice || !voice->SourceVoice) return;
-
-            data = &voice->EffectData;
-            sourceVoice = voice->SourceVoice;
-        }
-
-        SaXAudio::Instance.RemoveEq(sourceVoice, data);
+        SaXAudio::Instance.RemoveEq(voiceID, isBus, fade);
     }
 
-    EXPORT void SetEcho(const INT32 voiceID, const FXECHO_PARAMETERS echoParams, BOOL isBus)
+    EXPORT void SetEcho(const INT32 voiceID, const FXECHO_PARAMETERS echoParams, const FLOAT fade, BOOL isBus)
     {
-        IXAudio2Voice* sourceVoice = nullptr;
-        EffectData* data = nullptr;
-
-        if (isBus)
-        {
-            BusData* bus = SaXAudio::Instance.GetBus(voiceID);
-            if (!bus || !bus->voice) return;
-
-            data = bus;
-            sourceVoice = bus->voice;
-        }
-        else
-        {
-            AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
-            if (!voice || !voice->SourceVoice) return;
-
-            data = &voice->EffectData;
-            sourceVoice = voice->SourceVoice;
-        }
-
-        data->echo = echoParams;
-        SaXAudio::Instance.SetEcho(sourceVoice, data);
+        SaXAudio::Instance.SetEcho(voiceID, isBus, &echoParams, fade);
     }
 
-    EXPORT void RemoveEcho(const INT32 voiceID, BOOL isBus)
+    EXPORT void RemoveEcho(const INT32 voiceID, const FLOAT fade, BOOL isBus)
     {
-        IXAudio2Voice* sourceVoice = nullptr;
-        EffectData* data = nullptr;
-
-        if (isBus)
-        {
-            BusData* bus = SaXAudio::Instance.GetBus(voiceID);
-            if (!bus || !bus->voice) return;
-
-            data = bus;
-            sourceVoice = bus->voice;
-        }
-        else
-        {
-            AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
-            if (!voice || !voice->SourceVoice) return;
-
-            data = &voice->EffectData;
-            sourceVoice = voice->SourceVoice;
-        }
-
-        SaXAudio::Instance.RemoveEcho(sourceVoice, data);
+        SaXAudio::Instance.RemoveEcho(voiceID, isBus, fade);
     }
 
     EXPORT UINT32 GetPositionSample(const INT32 voiceID)

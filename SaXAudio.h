@@ -46,7 +46,7 @@ namespace SaXAudio
         mutex m_voiceMutex;
 
         unordered_map<INT32, BusData> m_buses;
-        INT32 m_busCounter = 0;
+        INT32 m_busCounter = 1;
         mutex m_busMutex;
 
         DWORD m_channelMask = 0;
@@ -88,18 +88,27 @@ namespace SaXAudio
         AudioVoice* CreateVoice(const INT32 bankID, const INT32 busID = -1);
         AudioVoice* GetVoice(const INT32 voiceID);
 
-        void SetReverb(IXAudio2Voice* voice, EffectData* data);
-        void RemoveReverb(IXAudio2Voice* voice, EffectData* data);
+        void SetReverb(const INT32 voiceID, const BOOL isBus, const XAUDIO2FX_REVERB_PARAMETERS* params, const FLOAT fade);
+        void RemoveReverb(const INT32 voiceID, const BOOL isBus, const FLOAT fade);
 
-        void SetEq(IXAudio2Voice* voice, EffectData* data);
-        void RemoveEq(IXAudio2Voice* voice, EffectData* data);
+        void SetEq(const INT32 voiceID, const BOOL isBus, const FXEQ_PARAMETERS* params, const FLOAT fade);
+        void RemoveEq(const INT32 voiceID, const BOOL isBus, const FLOAT fade);
 
-        void SetEcho(IXAudio2Voice* voice, EffectData* data);
-        void RemoveEcho(IXAudio2Voice* voice, EffectData* data);
+        void SetEcho(const INT32 voiceID, const BOOL isBus, const FXECHO_PARAMETERS* params, const FLOAT fade);
+        void RemoveEcho(const INT32 voiceID, const BOOL isBus, const FLOAT fade);
 
     private:
         static void DecodeOgg(const INT32 bankID, stb_vorbis* vorbis);
         void RemoveVoice(const INT32 voiceID);
         void CreateEffectChain(IXAudio2Voice* voice, EffectData* data);
+
+        static void OnFadeReverb(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
+        static void OnFadeReverbDisable(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
+         
+        static void OnFadeEq(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
+        static void OnFadeEqDisable(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
+         
+        static void OnFadeEcho(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
+        static void OnFadeEchoDisable(INT64 context, UINT32 count, FLOAT* newValues, BOOL hasFinished);
     };
 }

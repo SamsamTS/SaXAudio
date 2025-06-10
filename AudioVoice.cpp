@@ -241,8 +241,7 @@ namespace SaXAudio
         if (!SourceVoice || !BankData) return;
         Log(BankID, VoiceID, "[ChangeLoopPoints] start: " + to_string(start) + " end: " + to_string(end));
 
-        // When start and end equals 0 the loop will be stopped
-        if (end == 0 && start != 0)
+        if (end == 0)
             end = BankData->totalSamples - 1;
 
         if (LoopStart == start && LoopEnd == end)
@@ -290,6 +289,48 @@ namespace SaXAudio
 
         if (LoopStart == LoopEnd && LoopEnd != 0)
             LoopStart = LoopEnd - 1;
+
+        if (!IsPlaying)
+            return;
+
+        // Resume playing
+        Start((UINT32)position, false);
+    }
+
+    void AudioVoice::StopLooping()
+    {
+        if (!SourceVoice || !BankData || !Looping) return;
+        Log(BankID, VoiceID, "[StopLooping]");
+
+        UINT64 position = 0;
+        if (IsPlaying)
+        {
+            // We need to stop the voice to change the looping points
+            SourceVoice->Stop();
+
+            // We will calculate the current position in the buffer
+            // Unfortunately SamplesPlayed can be slightly inaccurate if the speed has been modified
+            // With loops this may add up
+            XAUDIO2_VOICE_STATE state;
+            SourceVoice->GetState(&state);
+
+            // Temporary flush the buffer
+            m_tempFlush++;
+            SourceVoice->FlushSourceBuffers();
+
+            // We might not have started at from the beginning of the buffer so we need add PlayBegin
+            position = state.SamplesPlayed - m_positionOffset + Buffer.PlayBegin;
+            if (Looping)
+            {
+                if (position > LoopStart)
+                {
+                    // We are somewhere in the loop
+                    position = LoopStart + ((position - LoopStart) % (UINT64)(LoopEnd - LoopStart));
+                }
+            }
+        }
+
+        Looping = false;
 
         if (!IsPlaying)
             return;

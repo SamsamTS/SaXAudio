@@ -73,6 +73,7 @@ namespace SaXAudio
         UINT32 GetPosition();
 
         void ChangeLoopPoints(const UINT32 start, const UINT32 end);
+        void StopLooping();
 
         void SetVolume(const FLOAT volume, const FLOAT fade = 0);
         void SetSpeed(FLOAT speed, const FLOAT fade = 0);

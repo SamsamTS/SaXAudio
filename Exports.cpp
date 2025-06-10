@@ -233,8 +233,7 @@ namespace SaXAudio
             else if (voice->SourceVoice)
             {
                 // This will stop the loop while continuing the playback from current position
-                voice->ChangeLoopPoints(0, 0);
-                voice->Looping = false;
+                voice->StopLooping();
             }
         }
     }

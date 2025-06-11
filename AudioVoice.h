@@ -73,7 +73,7 @@ namespace SaXAudio
         UINT32 GetPosition();
 
         void ChangeLoopPoints(const UINT32 start, const UINT32 end);
-        void StopLooping();
+        void SetLooping(BOOL state);
 
         void SetVolume(const FLOAT volume, const FLOAT fade = 0);
         void SetSpeed(FLOAT speed, const FLOAT fade = 0);
@@ -94,6 +94,7 @@ namespace SaXAudio
         void __stdcall OnVoiceError(void*, HRESULT) override {}
 
     private:
+        UINT64 CalculateCurrentPosition();
         static void WaitForDecoding(AudioVoice* voice);
 
         static void OnFadeVolume(INT64 voiceID, UINT32 count, FLOAT* newValues, BOOL hasFinished);

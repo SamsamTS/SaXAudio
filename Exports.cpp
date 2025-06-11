@@ -215,26 +215,7 @@ namespace SaXAudio
         AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
         if (voice)
         {
-            if (looping == voice->Looping)
-                return;
-
-            if (!voice->IsPlaying)
-            {
-                voice->Looping = looping;
-                return;
-            }
-
-            if (looping)
-            {
-                // Start looping
-                voice->Looping = true;
-                voice->ChangeLoopPoints(voice->LoopStart, voice->LoopEnd);
-            }
-            else if (voice->SourceVoice)
-            {
-                // This will stop the loop while continuing the playback from current position
-                voice->StopLooping();
-            }
+            voice->SetLooping(looping);
         }
     }
 

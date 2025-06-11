@@ -30,6 +30,8 @@ namespace SaXAudio
         if (!SourceVoice || !BankData) return false;
         Log(BankID, VoiceID, "[Start] at: " + to_string(atSample) + (Looping ? " loop start: " + to_string(LoopStart) + " loop end: " + to_string(LoopEnd) : ""));
 
+        // Update position offset
+        m_positionOffset = atSample;
         if (IsPlaying)
         {
             if (flush)
@@ -38,11 +40,9 @@ namespace SaXAudio
                 SourceVoice->Stop();
                 SourceVoice->FlushSourceBuffers();
             }
-
-            // Update position offset
             XAUDIO2_VOICE_STATE state;
             SourceVoice->GetState(&state);
-            m_positionOffset = state.SamplesPlayed - atSample;
+            m_positionOffset -= state.SamplesPlayed;
         }
 
         // Set up buffer
@@ -107,7 +107,6 @@ namespace SaXAudio
                 Log(voice->BankID, voice->VoiceID, "[Start] FAILED Waiting for decoded data timed out");
                 SaXAudio::Instance.RemoveVoice(voice->VoiceID);
                 return;
-
             }
         }
         if (FAILED(voice->SourceVoice->Start()))
@@ -117,7 +116,7 @@ namespace SaXAudio
         }
         else
         {
-            voice->m_tempFlush = false;
+            voice->m_tempFlush = 0;
             Log(voice->BankID, voice->VoiceID, "[Start] Successfully waited for decoded data");
         }
     }
@@ -147,7 +146,6 @@ namespace SaXAudio
             SourceVoice->Stop();
             SourceVoice->FlushSourceBuffers();
         }
-
         return true;
     }
 
@@ -215,25 +213,30 @@ namespace SaXAudio
         return m_pauseStack;
     }
 
-    UINT32 AudioVoice::GetPosition()
+    UINT64 AudioVoice::CalculateCurrentPosition()
     {
-        if (!IsPlaying || !SourceVoice) return 0;
-
         XAUDIO2_VOICE_STATE state;
         SourceVoice->GetState(&state);
 
-        // We might not have started at from the beginning of the buffer so we need add PlayBegin
-        UINT64 position = state.SamplesPlayed - m_positionOffset + Buffer.PlayBegin;
+        UINT64 position = state.SamplesPlayed + m_positionOffset;
         if (Looping && position > LoopStart)
         {
             // We are somewhere in the loop
             position = LoopStart + ((position - LoopStart) % (UINT64)(LoopEnd - LoopStart));
         }
+        return position;
+    }
+
+    UINT32 AudioVoice::GetPosition()
+    {
+        if (!IsPlaying || !SourceVoice) return 0;
+
+        UINT64 position = CalculateCurrentPosition();
 
         if (position == 0)
             return 1; // Probably waiting on decoding, returning 0 would mean it finished playing
 
-        return (INT32)position;
+        return (UINT32)position;
     }
 
     void AudioVoice::ChangeLoopPoints(const UINT32 start, UINT32 end)
@@ -250,32 +253,18 @@ namespace SaXAudio
         UINT64 position = 0;
         if (IsPlaying)
         {
-            // We need to stop the voice to change the looping points
+            // Stop and flush the voice
             SourceVoice->Stop();
 
-            // We will calculate the current position in the buffer
-            // Unfortunately SamplesPlayed can be slightly inaccurate if the speed has been modified
-            // With loops this may add up
-            XAUDIO2_VOICE_STATE state;
-            SourceVoice->GetState(&state);
+            position = CalculateCurrentPosition();
 
             // Temporary flush the buffer
             m_tempFlush++;
             SourceVoice->FlushSourceBuffers();
-
-            // We might not have started at from the beginning of the buffer so we need add PlayBegin
-            position = state.SamplesPlayed - m_positionOffset + Buffer.PlayBegin;
-            if (Looping)
-            {
-                if (position > LoopStart)
-                {
-                    // We are somewhere in the loop
-                    position = LoopStart + ((position - LoopStart) % (UINT64)(LoopEnd - LoopStart));
-                }
-            }
         }
 
         // Make sure LoopStart < LoopEnd
+        // Note: this must happen AFTER CalculateCurrentPosition
         if (start < end)
         {
             LoopStart = start;
@@ -290,53 +279,38 @@ namespace SaXAudio
         if (LoopStart == LoopEnd && LoopEnd != 0)
             LoopStart = LoopEnd - 1;
 
-        if (!IsPlaying)
-            return;
-
-        // Resume playing
-        Start((UINT32)position, false);
+        // Resume playing from calculated position
+        if (IsPlaying)
+            Start((UINT32)position, false);
     }
 
-    void AudioVoice::StopLooping()
+    void AudioVoice::SetLooping(BOOL state)
     {
-        if (!SourceVoice || !BankData || !Looping) return;
-        Log(BankID, VoiceID, "[StopLooping]");
+        if (!SourceVoice || !BankData || Looping == state) return;
+        Log(BankID, VoiceID, "[SetLooping] " + to_string(state));
 
         UINT64 position = 0;
         if (IsPlaying)
         {
-            // We need to stop the voice to change the looping points
+            // Stop and flush the voice
             SourceVoice->Stop();
 
-            // We will calculate the current position in the buffer
-            // Unfortunately SamplesPlayed can be slightly inaccurate if the speed has been modified
-            // With loops this may add up
-            XAUDIO2_VOICE_STATE state;
-            SourceVoice->GetState(&state);
+            position = CalculateCurrentPosition();
 
             // Temporary flush the buffer
             m_tempFlush++;
             SourceVoice->FlushSourceBuffers();
-
-            // We might not have started at from the beginning of the buffer so we need add PlayBegin
-            position = state.SamplesPlayed - m_positionOffset + Buffer.PlayBegin;
-            if (Looping)
-            {
-                if (position > LoopStart)
-                {
-                    // We are somewhere in the loop
-                    position = LoopStart + ((position - LoopStart) % (UINT64)(LoopEnd - LoopStart));
-                }
-            }
         }
 
-        Looping = false;
+        Looping = state; // Note: this must happen AFTER CalculateCurrentPosition
 
-        if (!IsPlaying)
-            return;
+        // Make sure LoopEnd is not 0
+        if (Looping && LoopEnd == 0)
+            LoopEnd = BankData->totalSamples - 1;
 
-        // Resume playing
-        Start((UINT32)position, false);
+        // Resume playing from calculated position
+        if (IsPlaying)
+            Start((UINT32)position, false);
     }
 
     void AudioVoice::SetVolume(const FLOAT volume, const FLOAT fade)
@@ -357,7 +331,6 @@ namespace SaXAudio
         }
         else
         {
-            Volume = volume;
             SourceVoice->SetVolume(volume);
         }
         Volume = volume;
@@ -413,9 +386,7 @@ namespace SaXAudio
     inline FLOAT FastCos(const FLOAT x)
     {
         // Normalize to [0, π/2] and use Taylor series: cos(x) ≈ 1 - x²/2 + x⁴/24 - x⁶/720
-        FLOAT x2 = x * x;
-        FLOAT x4 = x2 * x2;
-        FLOAT x6 = x4 * x2;
+        FLOAT x2 = x * x, x4 = x2 * x2, x6 = x4 * x2;
         return 1.0f - x2 * 0.5f + x4 * 0.041666667f - x6 * 0.001388889f;
     }
 
@@ -423,10 +394,7 @@ namespace SaXAudio
     inline FLOAT FastSin(const FLOAT x)
     {
         // Taylor series: sin(x) ≈ x - x³/6 + x⁵/120 - x⁷/5040
-        FLOAT x2 = x * x;
-        FLOAT x3 = x2 * x;
-        FLOAT x5 = x3 * x2;
-        FLOAT x7 = x5 * x2;
+        FLOAT x2 = x * x, x3 = x2 * x, x5 = x3 * x2, x7 = x5 * x2;
         return x - x3 * 0.166666667f + x5 * 0.008333333f - x7 * 0.000198413f;
     }
 
@@ -456,10 +424,9 @@ namespace SaXAudio
         if (matrixSize > inChannels * outChannels) return; // Safety check
 
         // Calculate pan gains using fast constant power panning
-        FLOAT leftGain, rightGain;
         FLOAT panAngle = (panning + 1.0f) * 0.25f * 3.14159265359f; // Map [-1,1] to [0, π/2]
-        leftGain = FastCos(panAngle);
-        rightGain = FastSin(panAngle);
+        FLOAT leftGain = FastCos(panAngle);
+        FLOAT rightGain = FastSin(panAngle);
 
         // Find channel positions in destination (support 5.1/7.1)
         int leftChannelIndex = -1;
@@ -642,7 +609,6 @@ namespace SaXAudio
             if (voice->m_pauseFadeID != 0)
             {
                 voice->m_pauseFadeID = 0;
-
                 if (voice->m_pauseStack > 0)
                 {
                     // Pause
@@ -662,7 +628,7 @@ namespace SaXAudio
             {
                 voice->m_volumeFadeID = 0;
             }
-            
+
             if (!voice->IsPlaying)
             {
                 voice->m_tempFlush = 0;

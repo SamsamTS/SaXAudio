@@ -109,6 +109,10 @@ namespace SaXAudio
                 return;
             }
         }
+
+        // Sound has been paused while we were waiting
+        if (voice->m_pauseStack > 0) return;
+
         if (FAILED(voice->SourceVoice->Start()))
         {
             Log(voice->BankID, voice->VoiceID, "[Start] FAILED starting");

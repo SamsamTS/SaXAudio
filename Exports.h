@@ -212,6 +212,18 @@ namespace SaXAudio
     /// <param name="voiceID"></param>
     /// <returns></returns>
     EXPORT BOOL GetLooping(const INT32 voiceID);
+    /// <summary>
+    /// Gets the loop start point
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns></returns>
+    EXPORT UINT32 GetLoopStart(const INT32 voiceID);
+    /// <summary>
+    /// Gets the loop end point
+    /// </summary>
+    /// <param name="voiceID"></param>
+    /// <returns></returns>
+    EXPORT UINT32 GetLoopEnd(const INT32 voiceID);
 
     /// <summary>
     /// Add/Modify the reverb effect to a voice or bus

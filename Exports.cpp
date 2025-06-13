@@ -268,6 +268,26 @@ namespace SaXAudio
         return false;
     }
 
+    EXPORT UINT32 GetLoopStart(const INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->LoopStart;
+        }
+        return 0;
+    }
+
+    EXPORT UINT32 GetLoopEnd(const INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
+        if (voice)
+        {
+            return voice->LoopEnd;
+        }
+        return 0;
+    }
+
     EXPORT void SetReverb(const INT32 voiceID, const XAUDIO2FX_REVERB_PARAMETERS reverbParams, const FLOAT fade, BOOL isBus)
     {
         SaXAudio::Instance.SetReverb(voiceID, isBus, &reverbParams, fade);

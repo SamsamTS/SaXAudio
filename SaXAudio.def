@@ -37,6 +37,8 @@ EXPORTS
 	GetSpeed
 	GetPanning
 	GetLooping
+    GetLoopStart
+    GetLoopEnd
 
 	SetReverb
 	RemoveReverb

@@ -60,6 +60,7 @@ namespace SaXAudio
         {
             // XAudio will refuse the buffer if PlayBegin is past the end of the loop,
             // we will just play the sound from the position without a loop
+            Looping = false;
             Buffer.LoopBegin = 0;
             Buffer.LoopLength = 0;
             Buffer.LoopCount = 0;

@@ -53,6 +53,7 @@ namespace SaXAudio
     struct BusData : EffectData
     {
         IXAudio2SubmixVoice* voice = nullptr;
+        UINT32 fadeID = 0;
     };
 
     struct BankData

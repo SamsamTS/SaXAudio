@@ -159,7 +159,7 @@ namespace SaXAudio
     /// </summary>
     /// <param name="voiceID"></param>
     /// <param name="volume">[0, 1]</param>
-    EXPORT void SetVolume(const INT32 voiceID, const FLOAT volume, const FLOAT fade = 0);
+    EXPORT void SetVolume(const INT32 voiceID, const FLOAT volume, const FLOAT fade = 0, BOOL isBus = false);
     /// <summary>
     /// Sets the playback speed of the voice
     /// This will affect the pitch of the audio

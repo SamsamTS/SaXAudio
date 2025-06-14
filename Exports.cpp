@@ -183,8 +183,14 @@ namespace SaXAudio
         return 0;
     }
 
-    EXPORT void SetVolume(const INT32 voiceID, const FLOAT volume, const FLOAT fade)
+    EXPORT void SetVolume(const INT32 voiceID, const FLOAT volume, const FLOAT fade, BOOL isBus)
     {
+        if (isBus)
+        {
+            SaXAudio::Instance.SetBusVolume(voiceID, volume, fade);
+            return;
+        }
+
         AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
         if (voice)
         {

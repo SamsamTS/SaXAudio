@@ -82,6 +82,7 @@ namespace SaXAudio
         INT32 AddBus();
         void RemoveBus(const INT32 busID);
         BusData* GetBus(const INT32 busID);
+        void SetBusVolume(const INT32 busID, const FLOAT volume, const FLOAT fade);
 
         BOOL StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length);
 

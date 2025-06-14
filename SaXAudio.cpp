@@ -251,6 +251,34 @@ namespace SaXAudio
         return bus;
     }
 
+    static void OnFadeVolume(INT64 busID, UINT32 count, FLOAT* newValues, BOOL hasFinished)
+    {
+        BusData* bus = SaXAudio::Instance.GetBus(busID);
+        if (!bus || !bus->voice) return;
+        bus->voice->SetVolume(newValues[0]);
+    }
+
+    void SaXAudio::SetBusVolume(const INT32 busID, const FLOAT volume, const FLOAT fade)
+    {
+        BusData* bus = SaXAudio::Instance.GetBus(busID);
+        if (!bus || !bus->voice) return;
+        Log(-1, -1, "[SetBusVolume] " + to_string(busID) + " to: " + to_string(volume) + " fade: " + to_string(fade));
+
+        Fader::Instance.StopFade(bus->fadeID);
+        bus->fadeID = 0;
+
+        if (fade > 0)
+        {
+            FLOAT current = 1.0f;
+            bus->voice->GetVolume(&current);
+            bus->fadeID = Fader::Instance.StartFade(current, volume, fade, OnFadeVolume, busID);
+        }
+        else
+        {
+            bus->voice->SetVolume(volume);
+        }
+    }
+
     BOOL SaXAudio::StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length)
     {
         int error;

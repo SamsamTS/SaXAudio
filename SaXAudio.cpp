@@ -569,11 +569,7 @@ namespace SaXAudio
 
         if (fade <= 0)
         {
-            HRESULT hr = voice->DisableEffect(1);
-            if (FAILED(hr))
-            {
-                Log(-1, -1, "Failed to remove reverb");
-            }
+            voice->DisableEffect(1);
             return;
         }
 
@@ -709,11 +705,7 @@ namespace SaXAudio
 
         if (fade <= 0)
         {
-            HRESULT hr = voice->DisableEffect(0);
-            if (FAILED(hr))
-            {
-                Log(-1, -1, "Failed to remove EQ");
-            }
+            voice->DisableEffect(0);
             return;
         }
 
@@ -823,11 +815,7 @@ namespace SaXAudio
 
         if (fade <= 0)
         {
-            HRESULT hr = voice->DisableEffect(2);
-            if (FAILED(hr))
-            {
-                Log(-1, -1, "Failed to remove Eq");
-            }
+            voice->DisableEffect(2);
             return;
         }
 

@@ -361,7 +361,9 @@ namespace SaXAudio
             Log(bankID, m_voiceCounter, "Failed to create EQ effect");
         }
 
-        hr = CreateFX(__uuidof(FXEcho), &voice->EffectData.descriptors[2].pEffect);
+        FXECHO_INITDATA init;
+        init.MaxDelay = 3000;
+        hr = CreateFX(__uuidof(FXEcho), &voice->EffectData.descriptors[2].pEffect, &init, sizeof(FXECHO_INITDATA));
         if (FAILED(hr))
         {
             Log(bankID, m_voiceCounter, "Failed to create echo effect");
@@ -943,7 +945,9 @@ namespace SaXAudio
             Log(-1, -1, "Failed to create EQ effect");
         }
 
-        hr = CreateFX(__uuidof(FXEcho), &data->descriptors[2].pEffect);
+        FXECHO_INITDATA init;
+        init.MaxDelay = 3000;
+        hr = CreateFX(__uuidof(FXEcho), &data->descriptors[2].pEffect, &init, sizeof(FXECHO_INITDATA));
         if (FAILED(hr))
         {
             Log(-1, -1, "Failed to create echo effect");

@@ -38,11 +38,11 @@ namespace SaXAudio
         IXAudio2MasteringVoice* m_masteringVoice = nullptr;
 
         unordered_map<INT32, BankData> m_bank;
-        INT32 m_bankCounter = 0;
+        INT32 m_bankCounter = 1;
         mutex m_bankMutex;
 
         unordered_map<INT32, AudioVoice*> m_voices;
-        INT32 m_voiceCounter = 0;
+        INT32 m_voiceCounter = 1;
         mutex m_voiceMutex;
 
         unordered_map<INT32, BusData> m_buses;
@@ -86,7 +86,7 @@ namespace SaXAudio
 
         BOOL StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length);
 
-        AudioVoice* CreateVoice(const INT32 bankID, const INT32 busID = -1);
+        AudioVoice* CreateVoice(const INT32 bankID, const INT32 busID = 0);
         AudioVoice* GetVoice(const INT32 voiceID);
 
         void SetReverb(const INT32 voiceID, const BOOL isBus, const XAUDIO2FX_REVERB_PARAMETERS* params, const FLOAT fade);

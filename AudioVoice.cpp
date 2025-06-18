@@ -589,7 +589,7 @@ namespace SaXAudio
         m_tempFlush = 0;
 
         Buffer = { 0 };
-        BankID = -1;
+        BankID = 0;
 
         SourceVoice = nullptr;
         BankData = nullptr;

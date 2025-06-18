@@ -94,7 +94,7 @@ namespace SaXAudio
         AudioVoice* voice = SaXAudio::Instance.CreateVoice(bankID, busID);
 
         if (!voice)
-            return -1;
+            return 0;
 
         if (!paused)
             voice->Start();
@@ -366,7 +366,7 @@ namespace SaXAudio
 
     EXPORT void SetOnFinishedCallback(const OnFinishedCallback callback)
     {
-        Log(-1, -1, "[OnVoiceFinished]");
+        Log(0, 0, "[OnVoiceFinished]");
         SaXAudio::Instance.OnFinishedCallback = callback;
     }
 }

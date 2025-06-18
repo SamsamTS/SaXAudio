@@ -93,12 +93,12 @@ namespace SaXAudio
                     << setw(2) << setfill('0') << seconds % 60 << "."
                     << setw(3) << setfill('0') << millisec % 1000;
 
-                if (entry.bankID >= 0)
+                if (entry.bankID > 0)
                     g_logData.file << " | " << setw(5) << setfill(' ') << left << ("B" + to_string(entry.bankID));
                 else
                     g_logData.file << " |      ";
 
-                if (entry.voiceID >= 0)
+                if (entry.voiceID > 0)
                     g_logData.file << " | " << setw(6) << setfill(' ') << left << ("V" + to_string(entry.voiceID)) << " | ";
                 else
                     g_logData.file << " |        | ";

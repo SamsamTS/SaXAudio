@@ -47,8 +47,8 @@ namespace SaXAudio
         IXAudio2SourceVoice* SourceVoice = nullptr;
         XAUDIO2_BUFFER Buffer = { 0 };
 
-        INT32 BankID = -1;
-        INT32 VoiceID = -1;
+        INT32 BankID = 0;
+        INT32 VoiceID = 0;
 
         FLOAT Volume = 1.0f;
         FLOAT Speed = 1.0f;

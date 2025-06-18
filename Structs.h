@@ -58,7 +58,7 @@ namespace SaXAudio
 
     struct BankData
     {
-        INT32 bankID = -1;
+        INT32 bankID = 0;
 
         FLOAT* buffer = nullptr;
         UINT32 size = 0;

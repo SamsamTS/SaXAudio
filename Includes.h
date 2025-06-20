@@ -24,7 +24,7 @@
 // Enables logging
 //---------------------------------------------------------------------
 
-#define LOGGING
+//#define LOGGING
 
 // Include minimal required stuff from windows
 #ifdef _M_X64
@@ -48,6 +48,7 @@
 #include <condition_variable>
 #include <chrono>
 #include <string>
+#include <fstream>
 using namespace std;
 
 #define STB_VORBIS_HEADER_ONLY

@@ -61,14 +61,28 @@ namespace SaXAudio
         SaXAudio::Instance.StopEngine();
     }
 
-    EXPORT void PauseAll(const FLOAT fade)
+    EXPORT INT32 PlayOggFile(const char* filePath, const INT32 busID)
     {
-        SaXAudio::Instance.PauseAll(fade);
+        SaXAudio::Instance.Init();
+
+        INT32 bankID = BankLoadOggFile(filePath);
+        SaXAudio::Instance.AutoRemoveBank(bankID);
+        return CreateVoice(bankID, busID, false);
     }
 
-    EXPORT void ResumeAll(const FLOAT fade)
+    EXPORT void PauseAll(const FLOAT fade, const INT32 busID)
     {
-        SaXAudio::Instance.ResumeAll(fade);
+        SaXAudio::Instance.PauseAll(fade, busID);
+    }
+
+    EXPORT void ResumeAll(const FLOAT fade, const INT32 busID)
+    {
+        SaXAudio::Instance.ResumeAll(fade, busID);
+    }
+
+    EXPORT void StopAll(const FLOAT fade, const INT32 busID)
+    {
+        SaXAudio::Instance.StopAll(fade, busID);
     }
 
     EXPORT void Protect(const INT32 voiceID)
@@ -84,9 +98,33 @@ namespace SaXAudio
         return bankID;
     }
 
+    void DeleteFileBuffer(INT32 bankID, const BYTE* buffer)
+    {
+        delete[] buffer;
+    }
+
+    EXPORT INT32 BankLoadOggFile(const char* filePath)
+    {
+        ifstream file(filePath, ios::binary | ios::ate);
+        if (!file)
+            return 0;
+
+        size_t length = (size_t)file.tellg();
+        file.seekg(0, ios::beg);
+
+        BYTE* buffer = new BYTE[length];
+        file.read(reinterpret_cast<char*>(buffer), length);
+        return BankAddOgg(buffer, (UINT32)length, DeleteFileBuffer);
+    }
+
     EXPORT void BankRemove(const INT32 bankID)
     {
         SaXAudio::Instance.RemoveBankEntry(bankID);
+    }
+
+    EXPORT void BankAutoRemove(const INT32 bankID)
+    {
+        SaXAudio::Instance.AutoRemoveBank(bankID);
     }
 
     EXPORT INT32 CreateVoice(const INT32 bankID, const INT32 busID, const BOOL paused)
@@ -183,6 +221,11 @@ namespace SaXAudio
         return 0;
     }
 
+    EXPORT void SetMasterVolume(const FLOAT volume, const FLOAT fade)
+    {
+        SaXAudio::Instance.SetBusVolume(0, volume, fade);
+    }
+
     EXPORT void SetVolume(const INT32 voiceID, const FLOAT volume, const FLOAT fade, BOOL isBus)
     {
         if (isBus)
@@ -232,6 +275,11 @@ namespace SaXAudio
         {
             voice->ChangeLoopPoints(start, end);
         }
+    }
+
+    EXPORT FLOAT GetMasterVolume()
+    {
+        return SaXAudio::Instance.GetBusVolume(0);
     }
 
     EXPORT FLOAT GetVolume(const INT32 voiceID)
@@ -364,9 +412,39 @@ namespace SaXAudio
         return 0.0f;
     }
 
+    EXPORT UINT32 GetSampleRate(const INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
+        if (voice && voice->BankData)
+        {
+            return voice->BankData->sampleRate;
+        }
+        return 0;
+    }
+
+    EXPORT UINT32 GetChannelCount(const INT32 voiceID)
+    {
+        AudioVoice* voice = SaXAudio::Instance.GetVoice(voiceID);
+        if (voice && voice->BankData)
+        {
+            return voice->BankData->channels;
+        }
+        return 0;
+    }
+
     EXPORT void SetOnFinishedCallback(const OnFinishedCallback callback)
     {
         Log(0, 0, "[OnVoiceFinished]");
         SaXAudio::Instance.OnFinishedCallback = callback;
+    }
+
+    EXPORT UINT32 GetVoiceCount()
+    {
+        return SaXAudio::Instance.GetVoiceCount();
+    }
+
+    EXPORT UINT32 GetBankCount()
+    {
+        return SaXAudio::Instance.GetBankCount();
     }
 }

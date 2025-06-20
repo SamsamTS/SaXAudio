@@ -35,7 +35,7 @@ namespace SaXAudio
         SaXAudio() = default;
 
         IXAudio2* m_XAudio = nullptr;
-        IXAudio2MasteringVoice* m_masteringVoice = nullptr;
+        BusData m_masteringBus;
 
         unordered_map<INT32, BankData> m_bank;
         INT32 m_bankCounter = 1;
@@ -72,17 +72,21 @@ namespace SaXAudio
         void StopEngine();
         void StartEngine();
 
-        void PauseAll(const FLOAT fade);
-        void ResumeAll(const FLOAT fade);
+        void PauseAll(const FLOAT fade, const INT32 busID = 0);
+        void ResumeAll(const FLOAT fade, const INT32 busID = 0);
+        void StopAll(const FLOAT fade, const INT32 busID = 0);
         void Protect(const INT32 voiceID);
 
         INT32 AddBankEntry(const OnDecodedCallback callback);
         void RemoveBankEntry(const INT32 bankID);
+        void AutoRemoveBank(const INT32 bankID);
 
         INT32 AddBus();
         void RemoveBus(const INT32 busID);
         BusData* GetBus(const INT32 busID);
+
         void SetBusVolume(const INT32 busID, const FLOAT volume, const FLOAT fade);
+        FLOAT GetBusVolume(const INT32 busID);
 
         BOOL StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length);
 
@@ -97,6 +101,9 @@ namespace SaXAudio
 
         void SetEcho(const INT32 voiceID, const BOOL isBus, const FXECHO_PARAMETERS* params, const FLOAT fade);
         void RemoveEcho(const INT32 voiceID, const BOOL isBus, const FLOAT fade);
+
+        UINT32 GetVoiceCount();
+        UINT32 GetBankCount();
 
     private:
         static void DecodeOgg(const INT32 bankID, stb_vorbis* vorbis);

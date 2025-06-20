@@ -590,6 +590,7 @@ namespace SaXAudio
 
         Buffer = { 0 };
         BankID = 0;
+        BusID = 0;
 
         SourceVoice = nullptr;
         BankData = nullptr;

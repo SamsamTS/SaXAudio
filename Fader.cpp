@@ -137,9 +137,9 @@ namespace SaXAudio
         if (it == m_jobs.end())
             return;
 
-        delete it->second.current;
-        delete it->second.target;
-        delete it->second.rate;
+        delete[] it->second.current;
+        delete[] it->second.target;
+        delete[] it->second.rate;
         m_jobs.erase(fadeID);
     }
 

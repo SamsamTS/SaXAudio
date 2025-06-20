@@ -49,6 +49,7 @@ namespace SaXAudio
 
         INT32 BankID = 0;
         INT32 VoiceID = 0;
+        INT32 BusID = 0;
 
         FLOAT Volume = 1.0f;
         FLOAT Speed = 1.0f;

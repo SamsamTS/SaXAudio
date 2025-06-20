@@ -26,7 +26,7 @@
 
 namespace SaXAudio
 {
-    typedef void (*OnDecodedCallback)(INT32 bankID);
+    typedef void (*OnDecodedCallback)(INT32 bankID, const BYTE* buffer);
 
     struct EffectData
     {
@@ -52,16 +52,19 @@ namespace SaXAudio
 
     struct BusData : EffectData
     {
-        IXAudio2SubmixVoice* voice = nullptr;
+        IXAudio2Voice* voice = nullptr;
         UINT32 fadeID = 0;
     };
 
     struct BankData
     {
         INT32 bankID = 0;
+        BOOL autoRemove = false;
 
         FLOAT* buffer = nullptr;
         UINT32 size = 0;
+
+        const BYTE* Oggbuffer = nullptr;
         OnDecodedCallback onDecodedCallback = nullptr;
 
         UINT32 channels = 0;

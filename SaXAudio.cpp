@@ -26,6 +26,9 @@
 namespace SaXAudio
 {
 #define GetEntry(data, map, id) nullptr; auto it_##data = map.find(id); if (it_##data != map.end()) data = &it_##data->second
+#define CHAIN_REVERB 0
+#define CHAIN_EQ 1
+#define CHAIN_ECHO 2
 
     SaXAudio& SaXAudio::Instance = SaXAudio::getInstance();
 
@@ -422,20 +425,20 @@ namespace SaXAudio
         voice->EffectData.descriptors[1] = { nullptr, false, data->channels };
         voice->EffectData.descriptors[2] = { nullptr, false, data->channels };
 
-        HRESULT hr = XAudio2CreateReverb(&voice->EffectData.descriptors[1].pEffect);
+        HRESULT hr = XAudio2CreateReverb(&voice->EffectData.descriptors[CHAIN_REVERB].pEffect);
         if (FAILED(hr))
         {
             Log(bankID, m_voiceCounter, "Failed to create reverb effect");
         }
 
-        hr = CreateFX(__uuidof(FXEQ), &voice->EffectData.descriptors[0].pEffect);
+        hr = CreateFX(__uuidof(FXEQ), &voice->EffectData.descriptors[CHAIN_EQ].pEffect);
         if (FAILED(hr))
         {
             Log(bankID, m_voiceCounter, "Failed to create EQ effect");
         }
 
         FXECHO_INITDATA init = { 3000 };
-        hr = CreateFX(__uuidof(FXEcho), &voice->EffectData.descriptors[2].pEffect, &init, sizeof(FXECHO_INITDATA));
+        hr = CreateFX(__uuidof(FXEcho), &voice->EffectData.descriptors[CHAIN_ECHO].pEffect, &init, sizeof(FXECHO_INITDATA));
         if (FAILED(hr))
         {
             Log(bankID, m_voiceCounter, "Failed to create echo effect");
@@ -529,7 +532,7 @@ namespace SaXAudio
             CreateEffectChain(voice, data);
         }
 
-        HRESULT hr = voice->EnableEffect(1);
+        HRESULT hr = voice->EnableEffect(CHAIN_REVERB);
         if (FAILED(hr))
         {
             Log(0, 0, "Failed to enable reverb");
@@ -538,7 +541,7 @@ namespace SaXAudio
         if (fade <= 0)
         {
             data->reverb = *params;
-            hr = voice->SetEffectParameters(1, &data->reverb, sizeof(XAUDIO2FX_REVERB_PARAMETERS), XAUDIO2_COMMIT_NOW);
+            hr = voice->SetEffectParameters(CHAIN_REVERB, &data->reverb, sizeof(XAUDIO2FX_REVERB_PARAMETERS), XAUDIO2_COMMIT_NOW);
             if (FAILED(hr))
             {
                 Log(0, 0, "Failed to set reverb parameters");
@@ -653,7 +656,7 @@ namespace SaXAudio
 
         if (fade <= 0)
         {
-            voice->DisableEffect(1);
+            voice->DisableEffect(CHAIN_REVERB);
             return;
         }
 
@@ -730,7 +733,7 @@ namespace SaXAudio
             CreateEffectChain(voice, data);
         }
 
-        HRESULT hr = voice->EnableEffect(0);
+        HRESULT hr = voice->EnableEffect(CHAIN_EQ);
         if (FAILED(hr))
         {
             Log(0, 0, "Failed to enable EQ");
@@ -739,7 +742,7 @@ namespace SaXAudio
         if (fade <= 0)
         {
             data->eq = *params;
-            hr = voice->SetEffectParameters(0, &data->eq, sizeof(FXEQ_PARAMETERS), XAUDIO2_COMMIT_NOW);
+            hr = voice->SetEffectParameters(CHAIN_EQ, &data->eq, sizeof(FXEQ_PARAMETERS), XAUDIO2_COMMIT_NOW);
             if (FAILED(hr))
             {
                 Log(0, 0, "Failed to set EQ effect parameters");
@@ -795,7 +798,7 @@ namespace SaXAudio
 
         if (fade <= 0)
         {
-            voice->DisableEffect(0);
+            voice->DisableEffect(CHAIN_EQ);
             return;
         }
 
@@ -851,7 +854,7 @@ namespace SaXAudio
             CreateEffectChain(voice, data);
         }
 
-        HRESULT hr = voice->EnableEffect(2);
+        HRESULT hr = voice->EnableEffect(CHAIN_ECHO);
         if (FAILED(hr))
         {
             Log(0, 0, "Failed to enable echo");
@@ -860,7 +863,7 @@ namespace SaXAudio
         if (fade <= 0)
         {
             data->echo = *params;
-            hr = voice->SetEffectParameters(2, &data->echo, sizeof(FXECHO_PARAMETERS), XAUDIO2_COMMIT_NOW);
+            hr = voice->SetEffectParameters(CHAIN_ECHO, &data->echo, sizeof(FXECHO_PARAMETERS), XAUDIO2_COMMIT_NOW);
             if (FAILED(hr))
             {
                 Log(0, 0, "Failed to set echo parameters");
@@ -911,7 +914,7 @@ namespace SaXAudio
 
         if (fade <= 0)
         {
-            voice->DisableEffect(2);
+            voice->DisableEffect(CHAIN_ECHO);
             return;
         }
 
@@ -1070,20 +1073,20 @@ namespace SaXAudio
 
     void SaXAudio::CreateEffectChain(IXAudio2Voice* voice, EffectData* data)
     {
-        HRESULT hr = XAudio2CreateReverb(&data->descriptors[1].pEffect);
+        HRESULT hr = XAudio2CreateReverb(&data->descriptors[CHAIN_REVERB].pEffect);
         if (FAILED(hr))
         {
             Log(0, 0, "Failed to create reverb effect");
         }
 
-        hr = CreateFX(__uuidof(FXEQ), &data->descriptors[0].pEffect);
+        hr = CreateFX(__uuidof(FXEQ), &data->descriptors[CHAIN_EQ].pEffect);
         if (FAILED(hr))
         {
             Log(0, 0, "Failed to create EQ effect");
         }
 
         FXECHO_INITDATA init = { 3000 };
-        hr = CreateFX(__uuidof(FXEcho), &data->descriptors[2].pEffect, &init, sizeof(FXECHO_INITDATA));
+        hr = CreateFX(__uuidof(FXEcho), &data->descriptors[CHAIN_ECHO].pEffect, &init, sizeof(FXECHO_INITDATA));
         if (FAILED(hr))
         {
             Log(0, 0, "Failed to create echo effect");
@@ -1135,7 +1138,7 @@ namespace SaXAudio
         data->reverb.Density = newValues[i++];
         data->reverb.RoomSize = newValues[i++];
 
-        HRESULT hr = voice->SetEffectParameters(1, &data->reverb, sizeof(XAUDIO2FX_REVERB_PARAMETERS), XAUDIO2_COMMIT_NOW);
+        HRESULT hr = voice->SetEffectParameters(CHAIN_REVERB, &data->reverb, sizeof(XAUDIO2FX_REVERB_PARAMETERS), XAUDIO2_COMMIT_NOW);
         if (FAILED(hr))
         {
             Log(0, 0, "Failed to set reverb parameters");
@@ -1154,7 +1157,7 @@ namespace SaXAudio
 
         if (hasFinished)
         {
-            voice->DisableEffect(1);
+            voice->DisableEffect(CHAIN_REVERB);
             return;
         }
 
@@ -1185,7 +1188,7 @@ namespace SaXAudio
         data->eq.Gain3 = newValues[i++];
         data->eq.Bandwidth3 = newValues[i++];
 
-        HRESULT hr = voice->SetEffectParameters(0, &data->eq, sizeof(FXEQ_PARAMETERS), XAUDIO2_COMMIT_NOW);
+        HRESULT hr = voice->SetEffectParameters(CHAIN_EQ, &data->eq, sizeof(FXEQ_PARAMETERS), XAUDIO2_COMMIT_NOW);
         if (FAILED(hr))
         {
             Log(0, 0, "Failed to set EQ parameters");
@@ -1204,7 +1207,7 @@ namespace SaXAudio
 
         if (hasFinished)
         {
-            voice->DisableEffect(0);
+            voice->DisableEffect(CHAIN_EQ);
             return;
         }
 
@@ -1226,7 +1229,7 @@ namespace SaXAudio
         data->echo.Feedback = newValues[i++];
         data->echo.Delay = newValues[i++];
 
-        HRESULT hr = voice->SetEffectParameters(2, &data->echo, sizeof(FXECHO_PARAMETERS), XAUDIO2_COMMIT_NOW);
+        HRESULT hr = voice->SetEffectParameters(CHAIN_ECHO, &data->echo, sizeof(FXECHO_PARAMETERS), XAUDIO2_COMMIT_NOW);
         if (FAILED(hr))
         {
             Log(0, 0, "Failed to set EQ parameters");
@@ -1245,7 +1248,7 @@ namespace SaXAudio
 
         if (hasFinished)
         {
-            voice->DisableEffect(2);
+            voice->DisableEffect(CHAIN_ECHO);
             return;
         }
 

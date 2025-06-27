@@ -59,12 +59,12 @@ using namespace std;
 #ifdef LOGGING
 namespace SaXAudio
 {
-    void Log(const INT32 bankID, const INT32 voiceId, const string& message);
+    void Log(const INT32 bankID, const INT32 voiceId, const string& message, HRESULT hr = 0);
     void StartLogging();
     void StopLogging();
 }
 #else
-#define Log(bankID, voiceId, message)
+#define Log(bankID, voiceId, message, hr)
 #define StartLogging()
 #define StopLogging()
 #endif // LOGGING

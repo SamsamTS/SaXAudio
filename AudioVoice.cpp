@@ -67,9 +67,10 @@ namespace SaXAudio
         }
 
         // Submitting the buffer
-        if (FAILED(SourceVoice->SubmitSourceBuffer(&Buffer)))
+        HRESULT hr = SourceVoice->SubmitSourceBuffer(&Buffer);
+        if (FAILED(hr))
         {
-            Log(BankID, VoiceID, "[Start] Failed to submit buffer");
+            Log(BankID, VoiceID, "[Start] Failed to submit buffer", hr);
             SaXAudio::Instance.RemoveVoice(VoiceID);
             return false;
         }
@@ -88,9 +89,9 @@ namespace SaXAudio
             thread wait(WaitForDecoding, this);
             wait.detach();
         }
-        else if (FAILED(SourceVoice->Start()))
+        else if (FAILED(hr = SourceVoice->Start()))
         {
-            Log(BankID, VoiceID, "[Start] FAILED starting");
+            Log(BankID, VoiceID, "[Start] FAILED starting", hr);
             SaXAudio::Instance.RemoveVoice(VoiceID);
             return false;
         }
@@ -105,7 +106,7 @@ namespace SaXAudio
         {
             if (!voice->BankData->decodingPerform.wait_for(lock, chrono::milliseconds(500), [voice] { return voice->BankData->decodedSamples > voice->Buffer.PlayBegin; }))
             {
-                Log(voice->BankID, voice->VoiceID, "[Start] FAILED Waiting for decoded data timed out");
+                Log(voice->BankID, voice->VoiceID, " ERROR | [Start] Failed waiting for decoded data, timed out");
                 SaXAudio::Instance.RemoveVoice(voice->VoiceID);
                 return;
             }
@@ -114,9 +115,10 @@ namespace SaXAudio
         // Sound has been paused while we were waiting
         if (voice->m_pauseStack > 0) return;
 
-        if (FAILED(voice->SourceVoice->Start()))
+        HRESULT hr = voice->SourceVoice->Start();
+        if (FAILED(hr))
         {
-            Log(voice->BankID, voice->VoiceID, "[Start] FAILED starting");
+            Log(voice->BankID, voice->VoiceID, "[Start] Failed starting", hr);
             SaXAudio::Instance.RemoveVoice(voice->VoiceID);
         }
         else
@@ -566,7 +568,7 @@ namespace SaXAudio
         HRESULT hr = SourceVoice->SetOutputMatrix(nullptr, sourceChannels, destChannels, outputMatrix);
         if (FAILED(hr))
         {
-            Log(BankID, VoiceID, "[SetOutputMatrix] FAILED");
+            Log(BankID, VoiceID, "[SetOutputMatrix] Failed. Source channels: " + to_string(sourceChannels) + " Destination channels: " + to_string(destChannels), hr);
         }
     }
 

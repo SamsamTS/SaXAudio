@@ -41,6 +41,7 @@ namespace SaXAudio
         INT32 bankID;
         INT32 voiceID;
         string message;
+        HRESULT result;
     };
 
     struct LogData
@@ -103,6 +104,9 @@ namespace SaXAudio
                 else
                     g_logData.file << " |        | ";
 
+                if (FAILED(entry.result))
+                    g_logData.file << " ERROR (0x" << hex << entry.result << ") | ";
+
                 g_logData.file << entry.message << endl;
             }
 
@@ -134,7 +138,7 @@ namespace SaXAudio
             g_logData.workThread.join();
     }
 
-    void Log(const INT32 bankID, const INT32 voiceId, const string& message)
+    void Log(const INT32 bankID, const INT32 voiceId, const string& message, HRESULT result = 0)
     {
         if (!g_logData.logging)
             return;
@@ -143,7 +147,7 @@ namespace SaXAudio
 
         {
             lock_guard<mutex> lock(g_logData.mutex);
-            g_logData.queue.push({ timestamp, bankID, voiceId, message });
+            g_logData.queue.push({ timestamp, bankID, voiceId, message, 0 });
         }
 
         g_logData.condition.notify_one();

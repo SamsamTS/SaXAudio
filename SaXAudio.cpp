@@ -29,6 +29,7 @@ namespace SaXAudio
 #define CHAIN_REVERB 0
 #define CHAIN_EQ 1
 #define CHAIN_ECHO 2
+#define POOL_SIZE_VOICES 50
 
     SaXAudio& SaXAudio::Instance = SaXAudio::getInstance();
 
@@ -124,13 +125,17 @@ namespace SaXAudio
         if (!m_XAudio)
             return;
 
-        lock_guard<mutex> lock(m_bankMutex);
-
-        for (auto it = m_bank.begin(); it != m_bank.end();)
+        while (!m_bank.empty())
         {
-            INT32 bankID = it->first;
-            it++;
-            RemoveBankEntry(bankID);
+            RemoveBankEntry(m_bank.begin()->first);
+        }
+
+        m_XAudio->StopEngine();
+
+        while (!m_voicePool.empty())
+        {
+            delete m_voicePool.front();
+            m_voicePool.pop();
         }
 
         StopLogging();
@@ -239,10 +244,15 @@ namespace SaXAudio
         data->autoRemove = false;
 
         // Delete all voices using that bankID
+        vector<INT32> keysToRemove;
         for (auto& it : m_voices)
         {
             if (it.second->BankID == bankID)
-                RemoveVoice(it.first);
+                keysToRemove.push_back(it.first);
+        }
+        for (const auto& voiceID : keysToRemove)
+        {
+            RemoveVoice(voiceID);
         }
 
         // Free the audio buffer
@@ -425,23 +435,16 @@ namespace SaXAudio
         wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign;
         wfx.cbSize = 0;
 
-        // Try to find a unused voice
-        AudioVoice* voice = nullptr;
-        for (auto& it : m_voices)
+        // Populate the pool if empty
+        if (m_voicePool.empty())
         {
-            if (!it.second->BankData && !it.second->SourceVoice)
-            {
-                voice = it.second;
-                m_voices.erase(it.first);
-                break;
-            }
+            for (UINT32 i = 0; i < POOL_SIZE_VOICES; i++)
+                m_voicePool.push(new AudioVoice);
         }
 
-        // No unused voices, create one
-        if (!voice)
-        {
-            voice = new AudioVoice;
-        }
+        // Get an unused voice
+        AudioVoice* voice = m_voicePool.front();
+        m_voicePool.pop();
 
         BusData* bus = GetEntry(bus, m_buses, busID);
 
@@ -1066,11 +1069,13 @@ namespace SaXAudio
             if (it_voice != m_voices.end())
                 voice = it_voice->second;
             if (!voice) return;
+            bankID = voice->BankID;
+            voice->BankID = 0;
 
             // Stop the voice
             if (voice->SourceVoice)
             {
-                Log(voice->BankID, voiceID, "[RemoveVoice] Stopping voice");
+                Log(bankID, voiceID, "[RemoveVoice] Stopping voice");
                 voice->SourceVoice->DestroyVoice();
                 voice->SourceVoice = nullptr;
             }
@@ -1083,8 +1088,6 @@ namespace SaXAudio
             }
 
             // Auto remove
-            bankID = voice->BankID;
-            voice->BankID = 0;
             BankData* data = GetEntry(data, m_bank, bankID);
             if (data && data->autoRemove)
             {
@@ -1102,6 +1105,9 @@ namespace SaXAudio
 
             // Voice ready to be reused
             voice->Reset();
+            m_voicePool.push(voice);
+            m_voices.erase(voiceID);
+
             Log(voice->BankID, voiceID, "[RemoveVoice] Deleted voice");
         }
 

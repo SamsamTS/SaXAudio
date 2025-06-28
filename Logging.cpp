@@ -138,7 +138,7 @@ namespace SaXAudio
             g_logData.workThread.join();
     }
 
-    void Log(const INT32 bankID, const INT32 voiceId, const string& message, HRESULT result = 0)
+    void Log(const INT32 bankID, const INT32 voiceId, const string& message, HRESULT result)
     {
         if (!g_logData.logging)
             return;

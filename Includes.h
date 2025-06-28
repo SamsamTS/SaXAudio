@@ -57,6 +57,7 @@ using namespace std;
 #define EXPORT extern "C" __declspec(dllexport)
 
 #ifdef LOGGING
+#pragma once
 namespace SaXAudio
 {
     void Log(const INT32 bankID, const INT32 voiceId, const string& message, HRESULT hr = 0);

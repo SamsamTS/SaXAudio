@@ -45,6 +45,11 @@ namespace SaXAudio
         INT32 m_voiceCounter = 1;
         mutex m_voiceMutex;
 
+        // XAudio will continue to send callbacks for a little while even after we destroyed the source voice
+        // This is why we use a pool and don't delete the voices, it is not possible to know when it's safe to do so
+        // So we put them back at the end the pool and hope XAudio is done with it by the time it gets reused
+        queue<AudioVoice*> m_voicePool;
+
         unordered_map<INT32, BusData> m_buses;
         INT32 m_busCounter = 1;
         mutex m_busMutex;

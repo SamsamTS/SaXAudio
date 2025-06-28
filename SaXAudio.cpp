@@ -234,15 +234,16 @@ namespace SaXAudio
 
         Log(bankID, 0, "[RemoveBankEntry]");
 
+        BankData* data = GetEntry(data, m_bank, bankID);
+        if (!data) return;
+        data->autoRemove = false;
+
         // Delete all voices using that bankID
         for (auto& it : m_voices)
         {
             if (it.second->BankID == bankID)
                 RemoveVoice(it.first);
         }
-
-        BankData* data = GetEntry(data, m_bank, bankID);
-        if (!data) return;
 
         // Free the audio buffer
         if (data->buffer)
@@ -1055,44 +1056,57 @@ namespace SaXAudio
 
     void SaXAudio::RemoveVoice(const INT32 voiceID)
     {
-        lock_guard<mutex> lock(m_voiceMutex);
-
-        AudioVoice* voice = nullptr;
-        auto it_voice = m_voices.find(voiceID);
-        if (it_voice != m_voices.end())
-            voice = it_voice->second;
-        if (!voice) return;
-
-        if (voice->IsPlaying)
+        BOOL autoRemove = false;
+        INT32 bankID = 0;
         {
-            Log(voice->BankID, voiceID, "[RemoveVoice] Stopping voice");
-            voice->Stop();
-            // RemoveVoice will be called again by OnBufferEnd
-        }
-        else
-        {
-            BankData* data = GetEntry(data, m_bank, voice->BankID);
+            lock_guard<mutex> lock(m_voiceMutex);
+
+            AudioVoice* voice = nullptr;
+            auto it_voice = m_voices.find(voiceID);
+            if (it_voice != m_voices.end())
+                voice = it_voice->second;
+            if (!voice) return;
+
+            // Stop the voice
+            if (voice->SourceVoice)
+            {
+                Log(voice->BankID, voiceID, "[RemoveVoice] Stopping voice");
+                voice->SourceVoice->DestroyVoice();
+                voice->SourceVoice = nullptr;
+            }
+
+            // Callback
+            if (voice->IsPlaying && OnFinishedCallback != nullptr)
+            {
+                thread onFinished(*OnFinishedCallback, voiceID);
+                onFinished.detach();
+            }
+
+            // Auto remove
+            bankID = voice->BankID;
+            voice->BankID = 0;
+            BankData* data = GetEntry(data, m_bank, bankID);
             if (data && data->autoRemove)
             {
-                BOOL remove = true;
+                autoRemove = true;
                 for (auto& it : m_voices)
                 {
                     // Look if any other voice is still playing the bank entry
-                    if (it.first != voiceID && it.second->BankID == voice->BankID)
+                    if (it.second->BankID == bankID)
                     {
-                        remove = false;
+                        autoRemove = false;
                         break;
                     }
                 }
-
-                if (remove)
-                    RemoveBankEntry(voice->BankID);
             }
 
-            voice->SourceVoice->DestroyVoice();
+            // Voice ready to be reused
             voice->Reset();
             Log(voice->BankID, voiceID, "[RemoveVoice] Deleted voice");
         }
+
+        if (autoRemove)
+            RemoveBankEntry(bankID);
     }
 
     void SaXAudio::CreateEffectChain(IXAudio2Voice* voice, EffectData* data)

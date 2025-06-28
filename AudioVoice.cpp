@@ -680,13 +680,6 @@ namespace SaXAudio
         }
         Log(BankID, VoiceID, "[OnBufferEnd] Voice finished playing");
 
-        IsPlaying = false;
         SaXAudio::Instance.RemoveVoice(VoiceID);
-
-        if (SaXAudio::Instance.OnFinishedCallback != nullptr)
-        {
-            thread onFinished(*SaXAudio::Instance.OnFinishedCallback, VoiceID);
-            onFinished.detach();
-        }
     }
 }

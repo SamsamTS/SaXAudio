@@ -64,6 +64,7 @@ namespace SaXAudio
     void StopLogging();
 }
 #else
+#pragma warning( disable : 4003)
 #define Log(bankID, voiceId, message, hr)
 #define StartLogging()
 #define StopLogging()

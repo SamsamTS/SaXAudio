@@ -45,6 +45,16 @@ namespace SaXAudio
     /// </summary>
     EXPORT void StopEngine();
 
+
+    /// <summary>
+    /// That's the "Just play the darn thing!" button for ya
+    /// Load and play audio from file path. It will also call Create() for you.
+    /// Note that this will load the file from disc every single time
+    /// </summary>
+    /// <param name="filePath">Path to the ogg file</param>
+    /// <param name="busID">The bus to play the audio on (0 for default bus)</param>
+    /// <returns>voiceID for controlling the audio</returns>
+    EXPORT INT32 PlayWavFile(const char* filePath, const INT32 busID = 0);
     /// <summary>
     /// That's the "Just play the darn thing!" button for ya
     /// Load and play audio from file path. It will also call Create() for you.
@@ -80,9 +90,25 @@ namespace SaXAudio
     EXPORT void Protect(const INT32 voiceID);
 
     /// <summary>
+    /// Add wav audio data to the sound bank
+    /// The data in the buffer will be copied in memory
+    /// The buffer can be freed/deleted immediately
+    /// </summary>
+    /// <param name="buffer">The wav data buffer</param>
+    /// <param name="length">The length in bytes of the data</param>
+    /// <returns>unique bankID for that audio data</returns>
+    EXPORT INT32 BankAddWav(const BYTE* buffer, const UINT32 length);
+    /// <summary>
+    /// Load audio from file path into sound bank
+    /// </summary>
+    /// <param name="filePath">Path to the wav file</param>
+    /// <returns>bankID for the loaded audio</returns>
+    EXPORT INT32 BankLoadWavFile(const char* filePath);
+
+    /// <summary>
     /// Add ogg audio data to the sound bank
     /// The data in the buffer will be decoded (async) and stored in memory
-    /// The buffer will not be freed/deleted
+    /// The buffer cannot be freed/deleted immediately but can be done safely once decoded (i.e. during OnDecodedCallback)
     /// </summary>
     /// <param name="buffer">The ogg data buffer</param>
     /// <param name="length">The length in bytes of the data</param>

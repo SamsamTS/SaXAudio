@@ -5,6 +5,7 @@ EXPORTS
 	StopEngine
 	StartEngine
 
+	PlayWavFile
 	PlayOggFile
 	
 	PauseAll
@@ -12,6 +13,8 @@ EXPORTS
 	StopAll
 	Protect
 	
+    BankAddWav
+    BankLoadWavFile
 	BankAddOgg
 	BankLoadOggFile
 	BankRemove

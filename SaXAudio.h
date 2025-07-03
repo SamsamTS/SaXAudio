@@ -93,6 +93,7 @@ namespace SaXAudio
         void SetBusVolume(const INT32 busID, const FLOAT volume, const FLOAT fade);
         FLOAT GetBusVolume(const INT32 busID);
 
+        UINT32 AddBankData(FLOAT* buffer, UINT32 channels, UINT32 sampleRate, UINT32 totalSamples);
         BOOL StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length);
 
         AudioVoice* CreateVoice(const INT32 bankID, const INT32 busID = 0);

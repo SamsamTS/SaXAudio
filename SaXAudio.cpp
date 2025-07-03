@@ -386,6 +386,24 @@ namespace SaXAudio
         return volume;
     }
 
+    UINT32 SaXAudio::AddBankData(FLOAT* buffer, UINT32 channels, UINT32 sampleRate, UINT32 totalSamples)
+    {
+        if (!m_XAudio)
+            return 0;
+
+        lock_guard<mutex> bankLock(SaXAudio::Instance.m_bankMutex);
+        Log(m_bankCounter, 0, "[AddBankData]");
+
+        BankData* data = &m_bank[m_bankCounter];
+        data->buffer = buffer;
+        data->channels = channels;
+        data->sampleRate = sampleRate;
+        data->totalSamples = totalSamples;
+        data->decodedSamples = data->totalSamples;
+
+        return m_bankCounter++;
+    }
+
     BOOL SaXAudio::StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length)
     {
         int error;

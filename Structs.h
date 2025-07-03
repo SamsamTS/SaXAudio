@@ -62,7 +62,6 @@ namespace SaXAudio
         BOOL autoRemove = false;
 
         FLOAT* buffer = nullptr;
-        UINT32 size = 0;
 
         const BYTE* Oggbuffer = nullptr;
         OnDecodedCallback onDecodedCallback = nullptr;

@@ -108,7 +108,7 @@ namespace SaXAudio
         void SetEcho(const INT32 voiceID, const BOOL isBus, const FXECHO_PARAMETERS* params, const FLOAT fade);
         void RemoveEcho(const INT32 voiceID, const BOOL isBus, const FLOAT fade);
 
-        UINT32 GetVoiceCount();
+        UINT32 GetVoiceCount(const INT32 bankID = 0, const INT32 busID = 0);
         UINT32 GetBankCount();
 
     private:

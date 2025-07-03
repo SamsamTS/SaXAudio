@@ -629,9 +629,9 @@ namespace SaXAudio
         SaXAudio::Instance.OnFinishedCallback = callback;
     }
 
-    EXPORT UINT32 GetVoiceCount()
+    EXPORT UINT32 GetVoiceCount(const INT32 bankID, const INT32 busID)
     {
-        return SaXAudio::Instance.GetVoiceCount();
+        return SaXAudio::Instance.GetVoiceCount(bankID, busID);
     }
 
     EXPORT UINT32 GetBankCount()

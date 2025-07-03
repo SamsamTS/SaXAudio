@@ -399,8 +399,10 @@ namespace SaXAudio
     /// <summary>
     /// Get the number of voices
     /// </summary>
+    /// <param name="bankID">Filter by bankID or 0 for any bankID</param>
+    /// <param name="busID">Filter by BusID or 0 for any busID</param>
     /// <returns>Number of currently active voices</returns>
-    EXPORT UINT32 GetVoiceCount();
+    EXPORT UINT32 GetVoiceCount(const INT32 bankID = 0, const INT32 busID = 0);
 
     /// <summary>
     /// Get the number of loaded audio banks

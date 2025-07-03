@@ -977,8 +977,7 @@ namespace SaXAudio
         Fader::Instance.StartFadeMulti(3, current, targets, fade, OnFadeEchoDisable, context);
     }
 
-
-    UINT32 SaXAudio::GetVoiceCount()
+    UINT32 SaXAudio::GetVoiceCount(const INT32 bankID, const INT32 busID)
     {
         if (!m_XAudio)
             return 0;
@@ -987,6 +986,10 @@ namespace SaXAudio
         UINT32 count = 0;
         for (auto& it : m_voices)
         {
+            if (bankID > 0 && it.second->BankID != bankID)
+                continue;
+            if (busID > 0 && it.second->BusID != busID)
+                continue;
             if (!it.second->SourceVoice)
                 count++;
         }

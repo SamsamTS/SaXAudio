@@ -389,22 +389,6 @@ namespace SaXAudio
         }
     }
 
-    // Fast approximation of cosine using Taylor series (good for [0, π/2])
-    inline FLOAT FastCos(const FLOAT x)
-    {
-        // Normalize to [0, π/2] and use Taylor series: cos(x) ≈ 1 - x²/2 + x⁴/24 - x⁶/720
-        FLOAT x2 = x * x, x4 = x2 * x2, x6 = x4 * x2;
-        return 1.0f - x2 * 0.5f + x4 * 0.041666667f - x6 * 0.001388889f;
-    }
-
-    // Fast approximation of sine using Taylor series (good for [0, π/2])
-    inline FLOAT FastSin(const FLOAT x)
-    {
-        // Taylor series: sin(x) ≈ x - x³/6 + x⁵/120 - x⁷/5040
-        FLOAT x2 = x * x, x3 = x2 * x, x5 = x3 * x2, x7 = x5 * x2;
-        return x - x3 * 0.166666667f + x5 * 0.008333333f - x7 * 0.000198413f;
-    }
-
     void AudioVoice::SetOutputMatrix(FLOAT panning)
     {
         if (!SourceVoice || !BankData) return;
@@ -415,41 +399,27 @@ namespace SaXAudio
         if (sourceChannels > 2 || destChannels == 0)
             return;
 
-        // Clamp panning to valid range
-        panning = (panning < -1.0f) ? -1.0f : ((panning > 1.0f) ? 1.0f : panning);
-
-        // Treat mono as stereo (2 identical channels)
         const UINT32 inChannels = 2;
-        // Max out channels
         const UINT32 outChannels = 12;
-        if (destChannels > outChannels)
-            destChannels = outChannels;
 
         // Allocate output matrix on stack (assume reasonable max channels)
         FLOAT outputMatrix[inChannels * outChannels] = { 0 }; // Max 2x12 matrix, initialized to 0
-        UINT32 matrixSize = inChannels * destChannels;
-        if (matrixSize > inChannels * outChannels) return; // Safety check
-
-        // Calculate pan gains using fast constant power panning
-        FLOAT panAngle = (panning + 1.0f) * 0.25f * 3.14159265359f; // Map [-1,1] to [0, π/2]
-        FLOAT leftGain = FastCos(panAngle);
-        FLOAT rightGain = FastSin(panAngle);
 
         // Find channel positions in destination (support 5.1/7.1)
-        int leftChannelIndex = -1;
-        int rightChannelIndex = -1;
-        int centerChannelIndex = -1;
-        int lfeChannelIndex = -1;
-        int backLeftChannelIndex = -1;
-        int backRightChannelIndex = -1;
-        int sideLeftChannelIndex = -1;
-        int sideRightChannelIndex = -1;
+        INT32 leftChannelIndex = -1;
+        INT32 rightChannelIndex = -1;
+        INT32 centerChannelIndex = -1;
+        INT32 lfeChannelIndex = -1;
+        INT32 backLeftChannelIndex = -1;
+        INT32 backRightChannelIndex = -1;
+        INT32 sideLeftChannelIndex = -1;
+        INT32 sideRightChannelIndex = -1;
 
         // Map channel mask to indices
         DWORD currentMask = 1;
-        int channelIndex = 0;
+        INT32 channelIndex = 0;
 
-        for (UINT32 i = 0; i < outChannels && channelIndex < (int)destChannels; i++)
+        for (UINT32 i = 0; i < outChannels && channelIndex < (INT32)destChannels; i++)
         {
             if (channelMask & currentMask)
             {
@@ -469,96 +439,64 @@ namespace SaXAudio
             currentMask <<= 1;
         }
 
-        // If we don't have explicit left/right channels, use first two channels
-        if (leftChannelIndex == -1 && destChannels >= 1) leftChannelIndex = 0;
-        if (rightChannelIndex == -1 && destChannels >= 2) rightChannelIndex = 1;
-        else if (rightChannelIndex == -1) rightChannelIndex = leftChannelIndex; // Mono output
-
-        // If we don't have explicit left/right channels, use first two channels
-        if (leftChannelIndex == -1 && destChannels >= 1) leftChannelIndex = 0;
-        if (rightChannelIndex == -1 && destChannels >= 2) rightChannelIndex = 1;
-        else if (rightChannelIndex == -1) rightChannelIndex = leftChannelIndex; // Mono output
-
-        // Set up the matrix based on source configuration
         if (sourceChannels == 1)
         {
-            // Mono source: single channel matrix
-            // Apply panning to front L/R channels
-            if (leftChannelIndex >= 0)
-            {
-                outputMatrix[0 * destChannels + leftChannelIndex] = leftGain;
-            }
-            if (rightChannelIndex >= 0)
-            {
-                outputMatrix[0 * destChannels + rightChannelIndex] = rightGain;
-            }
+            FLOAT leftGain = min(1, 1 - panning);
+            FLOAT rightGain = min(1, 1 + panning);
 
-            // Send to center channel (if present)
-            if (centerChannelIndex >= 0)
-            {
-                FLOAT centerGain = 0.707f; // No summing, so use -3dB
-                outputMatrix[0 * destChannels + centerChannelIndex] = centerGain;
-            }
+            if (leftChannelIndex >= 0) outputMatrix[leftChannelIndex] = leftGain;
+            if (rightChannelIndex >= 0) outputMatrix[rightChannelIndex] = rightGain;
+            if (centerChannelIndex >= 0) outputMatrix[centerChannelIndex] = 0.707f;
 
-            // Send to surround channels at reduced level
             FLOAT surroundGain = 0.5f; // -6dB
-            if (backLeftChannelIndex >= 0)
-            {
-                outputMatrix[0 * destChannels + backLeftChannelIndex] = surroundGain;
-            }
-            if (backRightChannelIndex >= 0)
-            {
-                outputMatrix[0 * destChannels + backRightChannelIndex] = surroundGain;
-            }
-            if (sideLeftChannelIndex >= 0)
-            {
-                outputMatrix[0 * destChannels + sideLeftChannelIndex] = surroundGain;
-            }
-            if (sideRightChannelIndex >= 0)
-            {
-                outputMatrix[0 * destChannels + sideRightChannelIndex] = surroundGain;
-            }
+            if (backLeftChannelIndex >= 0) outputMatrix[backLeftChannelIndex] = surroundGain * leftGain;
+            if (backRightChannelIndex >= 0) outputMatrix[backRightChannelIndex] = surroundGain * rightGain;
+            if (sideLeftChannelIndex >= 0) outputMatrix[sideLeftChannelIndex] = surroundGain * leftGain;
+            if (sideRightChannelIndex >= 0) outputMatrix[sideRightChannelIndex] = surroundGain * rightGain;
         }
         else if (sourceChannels == 2)
         {
-            // Stereo source: two channel matrix
-            // Apply panning to front L/R channels
+            FLOAT LR = max(0, -panning);
+            FLOAT RL = max(0, panning);
+            FLOAT LL = min(1, 1 - panning);
+            FLOAT RR = min(1, 1 + panning);
+
             if (leftChannelIndex >= 0)
             {
-                outputMatrix[0 * destChannels + leftChannelIndex] = leftGain;   // Left -> Left
-                outputMatrix[1 * destChannels + leftChannelIndex] = leftGain;   // Right -> Left
+                outputMatrix[leftChannelIndex * sourceChannels + 0] = LL;
+                outputMatrix[leftChannelIndex * sourceChannels + 1] = LR;
             }
             if (rightChannelIndex >= 0)
             {
-                outputMatrix[0 * destChannels + rightChannelIndex] = rightGain; // Left -> Right
-                outputMatrix[1 * destChannels + rightChannelIndex] = rightGain; // Right -> Right
+                outputMatrix[rightChannelIndex * sourceChannels + 0] = RL;
+                outputMatrix[rightChannelIndex * sourceChannels + 1] = RR;
             }
-
-            // Mix to center channel (if present) - sum L+R at reduced level
             if (centerChannelIndex >= 0)
             {
-                FLOAT centerGain = 0.5f; // -6dB to prevent overload when summing L+R
-                outputMatrix[0 * destChannels + centerChannelIndex] = centerGain; // Left -> Center
-                outputMatrix[1 * destChannels + centerChannelIndex] = centerGain; // Right -> Center
+                outputMatrix[centerChannelIndex * sourceChannels + 0] = 0.707f;
+                outputMatrix[centerChannelIndex * sourceChannels + 1] = 0.707f;
             }
 
-            // Send to surround channels at reduced level (ambient effect)
-            FLOAT surroundGain = 0.35f; // -9dB
+            FLOAT surroundGain = 0.5f; // -6dB
             if (backLeftChannelIndex >= 0)
             {
-                outputMatrix[0 * destChannels + backLeftChannelIndex] = surroundGain; // Left -> Back Left
+                outputMatrix[backLeftChannelIndex * sourceChannels + 0] = surroundGain * LL;
+                outputMatrix[backLeftChannelIndex * sourceChannels + 1] = surroundGain * LR;
             }
             if (backRightChannelIndex >= 0)
             {
-                outputMatrix[1 * destChannels + backRightChannelIndex] = surroundGain; // Right -> Back Right
+                outputMatrix[backRightChannelIndex * sourceChannels + 0] = surroundGain * RL;
+                outputMatrix[backRightChannelIndex * sourceChannels + 1] = surroundGain * RR;
             }
             if (sideLeftChannelIndex >= 0)
             {
-                outputMatrix[0 * destChannels + sideLeftChannelIndex] = surroundGain; // Left -> Side Left
+                outputMatrix[sideLeftChannelIndex * sourceChannels + 0] = surroundGain * LL;
+                outputMatrix[sideLeftChannelIndex * sourceChannels + 1] = surroundGain * LR;
             }
             if (sideRightChannelIndex >= 0)
             {
-                outputMatrix[1 * destChannels + sideRightChannelIndex] = surroundGain; // Right -> Side Right
+                outputMatrix[sideRightChannelIndex * sourceChannels + 0] = surroundGain * RL;
+                outputMatrix[sideRightChannelIndex * sourceChannels + 1] = surroundGain * RR;
             }
         }
 

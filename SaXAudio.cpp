@@ -125,12 +125,14 @@ namespace SaXAudio
         if (!m_XAudio)
             return;
 
+        m_XAudio->StopEngine();
+        m_XAudio->Release();
+        m_XAudio = nullptr;
+
         while (!m_bank.empty())
         {
             RemoveBankEntry(m_bank.begin()->first);
         }
-
-        m_XAudio->StopEngine();
 
         while (!m_voicePool.empty())
         {
@@ -141,8 +143,6 @@ namespace SaXAudio
         StopLogging();
 
         m_voices.clear();
-        m_XAudio->Release();
-        m_XAudio = nullptr;
         m_masteringBus.voice = nullptr;
     }
 
@@ -231,36 +231,47 @@ namespace SaXAudio
         return m_bankCounter++;
     }
 
+    static mt19937 gen { std::random_device{}() };
+    void DeleteBufferDelayed(FLOAT* buffer, INT32 bankID)
+    {
+        INT32 rng = uniform_int_distribution<> { 0, 1000 }(gen);
+        this_thread::sleep_for(chrono::milliseconds(1000 + rng));
+        Log(bankID, 0, "[DeleteBufferDelayed]");
+        delete[] buffer;
+    }
+
     void SaXAudio::RemoveBankEntry(const INT32 bankID)
     {
-        if (!m_XAudio)
-            return;
         lock_guard<mutex> lock(m_bankMutex);
 
         Log(bankID, 0, "[RemoveBankEntry]");
 
         BankData* data = GetEntry(data, m_bank, bankID);
         if (!data) return;
-        data->autoRemove = false;
+        data->autoRemove = true;
+        data->disposed = true;
 
-        // Delete all voices using that bankID
-        vector<INT32> keysToRemove;
-        for (auto& it : m_voices)
+        if (m_XAudio)
         {
-            if (it.second->BankID == bankID)
-                keysToRemove.push_back(it.first);
-        }
-        for (const auto& voiceID : keysToRemove)
-        {
-            RemoveVoice(voiceID);
+            // Let voices finish before removing
+            for (auto& it : m_voices)
+            {
+                if (it.second->BankID == bankID)
+                {
+                    // We let autoRemove delete the bankID
+                    return;
+                }
+            }
         }
 
         // Free the audio buffer
         if (data->buffer)
         {
-            delete[] data->buffer;
+            thread deleteBuffer(DeleteBufferDelayed, data->buffer, bankID);
+            deleteBuffer.detach();
             data->buffer = nullptr;
         }
+        // onDecodedCallback guarantied to be called
         if (data->onDecodedCallback)
         {
             (*data->onDecodedCallback)(bankID, data->Oggbuffer);
@@ -323,7 +334,7 @@ namespace SaXAudio
         for (auto& it : m_voices)
         {
             if (it.second->BusID == busID)
-                RemoveVoice(it.first);
+                it.second->Stop();
         }
 
         bus->voice->DestroyVoice();
@@ -441,7 +452,7 @@ namespace SaXAudio
         lock_guard<mutex> voiceLock(m_voiceMutex);
 
         BankData* data = GetEntry(data, m_bank, bankID);
-        if (!data) return nullptr;
+        if (!data || data->disposed) return nullptr;
 
         // Set up audio format
         WAVEFORMATEX wfx = { 0 };
@@ -1002,7 +1013,14 @@ namespace SaXAudio
             return 0;
         lock_guard<mutex> lock(m_bankMutex);
 
-        return (UINT32)m_bank.size();
+        UINT32 count = 0;
+        for (auto& it : m_bank)
+        {
+            if (!it.second.disposed)
+                count++;
+        }
+
+        return count;
     }
 
     void SaXAudio::DecodeOgg(const INT32 bankID, stb_vorbis* vorbis)
@@ -1038,7 +1056,7 @@ namespace SaXAudio
                 data = &it->second;
 
             // BankEntry removed
-            if (!data || !data->buffer) break;
+            if (!data || data->disposed || !data->buffer) break;
 
             {
                 lock_guard<mutex> lock(data->decodingMutex);
@@ -1068,7 +1086,7 @@ namespace SaXAudio
             lock_guard<mutex> lock(SaXAudio::Instance.m_bankMutex);
 
             BankData* data = GetEntry(data, SaXAudio::Instance.m_bank, bankID);
-            if (data)
+            if (data && data->onDecodedCallback)
             {
                 (*data->onDecodedCallback)(bankID, data->Oggbuffer);
                 data->onDecodedCallback = nullptr;

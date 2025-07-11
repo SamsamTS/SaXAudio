@@ -123,6 +123,7 @@ namespace SaXAudio
     EXPORT INT32 BankLoadOggFile(const char* filePath);
     /// <summary>
     /// Remove and free the memory of the specified audio data
+    /// Voices still playing the bank data will not be stopped and will continue playing
     /// </summary>
     /// <param name="bankID">The bankID of the data to remove</param>
     EXPORT void BankRemove(const INT32 bankID);

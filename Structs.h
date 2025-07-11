@@ -60,6 +60,7 @@ namespace SaXAudio
     {
         INT32 bankID = 0;
         BOOL autoRemove = false;
+        BOOL disposed = false;
 
         FLOAT* buffer = nullptr;
 

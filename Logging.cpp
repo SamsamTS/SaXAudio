@@ -90,9 +90,9 @@ namespace SaXAudio
                 INT32 hours = minutes / 60;
 
                 g_logData.file << hours << ":"
-                    << setw(2) << setfill('0') << minutes % 60 << ":"
-                    << setw(2) << setfill('0') << seconds % 60 << "."
-                    << setw(3) << setfill('0') << millisec % 1000;
+                    << setw(2) << setfill('0') << right  << minutes % 60 << ":"
+                    << setw(2) << setfill('0') << right  << seconds % 60 << "."
+                    << setw(3) << setfill('0') << right  << millisec % 1000;
 
                 if (entry.bankID > 0)
                     g_logData.file << " | " << setw(5) << setfill(' ') << left << ("B" + to_string(entry.bankID));

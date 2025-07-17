@@ -134,6 +134,10 @@ namespace SaXAudio
             RemoveBankEntry(m_bank.begin()->first);
         }
 
+        for (auto& it : m_bufferPool)
+            delete[] it.Data;
+        m_bufferPool.clear();
+
         while (!m_voicePool.empty())
         {
             delete m_voicePool.front();
@@ -225,26 +229,15 @@ namespace SaXAudio
             return 0;
         lock_guard<mutex> lock(m_bankMutex);
 
-        Log(m_bankCounter, 0, "[AddBankEntry]");
+        Log(m_bankCounter, 0, "[AddBankEntry] entries: " + to_string(m_bank.size() + 1));
 
         m_bank[m_bankCounter].onDecodedCallback = callback;
         return m_bankCounter++;
     }
 
-    static mt19937 gen { std::random_device{}() };
-    void DeleteBufferDelayed(FLOAT* buffer, INT32 bankID)
-    {
-        INT32 rng = uniform_int_distribution<> { 0, 1000 }(gen);
-        this_thread::sleep_for(chrono::milliseconds(1000 + rng));
-        Log(bankID, 0, "[DeleteBufferDelayed]");
-        delete[] buffer;
-    }
-
     void SaXAudio::RemoveBankEntry(const INT32 bankID)
     {
         lock_guard<mutex> lock(m_bankMutex);
-
-        Log(bankID, 0, "[RemoveBankEntry]");
 
         BankData* data = GetEntry(data, m_bank, bankID);
         if (!data) return;
@@ -259,18 +252,16 @@ namespace SaXAudio
                 if (it.second->BankID == bankID)
                 {
                     // We let autoRemove delete the bankID
+                    Log(bankID, 0, "[RemoveBankEntry] Waiting for voices to finish");
                     return;
                 }
             }
         }
 
-        // Free the audio buffer
-        if (data->buffer)
-        {
-            thread deleteBuffer(DeleteBufferDelayed, data->buffer, bankID);
-            deleteBuffer.detach();
-            data->buffer = nullptr;
-        }
+        // Return buffer to the pool
+        m_bufferPool.push_back(data->buffer);
+        Log(bankID, 0, "[RemoveBankEntry] Returned buffer size: " + to_string(data->buffer.Size / 1024) + "KB");
+
         // onDecodedCallback guarantied to be called
         if (data->onDecodedCallback)
         {
@@ -397,7 +388,64 @@ namespace SaXAudio
         return volume;
     }
 
-    UINT32 SaXAudio::AddBankData(FLOAT* buffer, UINT32 channels, UINT32 sampleRate, UINT32 totalSamples)
+    Buffer SaXAudio::GetBuffer(UINT32 length)
+    {
+        Buffer buffer;
+        if (length == 0) return buffer;
+        buffer.Size = 1024;
+        while (buffer.Size < length)
+            buffer.Size <<= 1;
+
+        auto it = m_bufferPool.begin();
+        auto end = m_bufferPool.end();
+        auto candidate = end;
+        while (it != end)
+        {
+            if (it->Size == buffer.Size)
+            {
+                candidate = it;
+                break;
+            }
+            if (it->Size > buffer.Size && it->Size < buffer.Size * 4)
+            {
+                if (candidate == end)
+                    candidate = it;
+                else if (it->Size < candidate->Size)
+                    candidate = it;
+            }
+            it++;
+        }
+
+#ifdef LOGGING
+        static UINT64 totalSize = 0;
+        UINT64 poolSize = 0;
+        for (auto& it : m_bufferPool)
+            poolSize += it.Size;
+#endif // LOGGING
+
+        if (candidate != end)
+        {
+            Log(0, 0, "[GetBuffer] Found buffer size: " + to_string(candidate->Size / 1024) + "KB (" + to_string(buffer.Size / 1024) + "KB) pool size: " + to_string((poolSize - candidate->Size) / 1024) + "KB");
+            buffer = *candidate;
+            m_bufferPool.erase(candidate);
+            return buffer;
+        }
+
+        buffer.Data = new FLOAT[buffer.Size];
+#ifdef LOGGING
+        totalSize += buffer.Size;
+        Log(0, 0, "[GetBuffer] Created buffer size: " + to_string(buffer.Size / 1024) + "KB total size: " + to_string(totalSize / 1024 / 1024) + "MB pool size: " + to_string(poolSize / 1024) + "KB");
+#endif // LOGGING
+        return buffer;
+    }
+
+    void SaXAudio::ReturnBuffer(Buffer buffer)
+    {
+        lock_guard<mutex> bankLock(SaXAudio::Instance.m_bankMutex);
+        m_bufferPool.push_back(buffer);
+    }
+
+    UINT32 SaXAudio::AddBankData(Buffer buffer, UINT32 channels, UINT32 sampleRate, UINT32 totalSamples)
     {
         if (!m_XAudio)
             return 0;
@@ -436,7 +484,7 @@ namespace SaXAudio
 
         // Get total samples count and allocate the buffer
         data->totalSamples = stb_vorbis_stream_length_in_samples(vorbis);
-        data->buffer = new FLOAT[data->totalSamples * data->channels];
+        data->buffer = GetBuffer(data->totalSamples * data->channels);
 
         thread decode(DecodeOgg, bankID, vorbis);
         decode.detach();
@@ -524,7 +572,7 @@ namespace SaXAudio
         // Submit audio buffer
         voice->Buffer = { 0 };
         voice->Buffer.AudioBytes = static_cast<UINT32>(sizeof(float) * data->totalSamples * data->channels);
-        voice->Buffer.pAudioData = reinterpret_cast<const BYTE*>(data->buffer);
+        voice->Buffer.pAudioData = reinterpret_cast<const BYTE*>(data->buffer.Data);
         voice->Buffer.Flags = XAUDIO2_END_OF_STREAM;
 
         voice->BankID = bankID;
@@ -1056,13 +1104,13 @@ namespace SaXAudio
                 data = &it->second;
 
             // BankEntry removed
-            if (!data || data->disposed || !data->buffer) break;
+            if (!data || data->disposed) break;
 
             {
                 lock_guard<mutex> lock(data->decodingMutex);
 
                 // Read samples
-                FLOAT* pBuffer = &data->buffer[data->decodedSamples * data->channels];
+                FLOAT* pBuffer = &data->buffer.Data[data->decodedSamples * data->channels];
                 UINT32 decoded = stb_vorbis_get_samples_float_interleaved(vorbis, data->channels, pBuffer, bufferSize * data->channels);
                 samplesDecoded += decoded;
                 data->decodedSamples = samplesDecoded;

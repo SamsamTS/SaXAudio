@@ -205,7 +205,7 @@ namespace SaXAudio
         UINT32 totalSamples = header->dataSize / (header->channels * bytesPerSample);
 
         // Allocate buffer for float data (always 32-bit float output)
-        FLOAT* data = new FLOAT[totalSamples * header->channels];
+        Buffer data = SaXAudio::Instance.GetBuffer(totalSamples * header->channels);
         const BYTE* audioData = buffer + sizeof(WavHeader);
 
         // Convert based on input format
@@ -217,12 +217,12 @@ namespace SaXAudio
 
             if (header->blockAlign != expectedBlockAlign || header->byteRate != expectedByteRate)
             {
-                delete[] data;
+                SaXAudio::Instance.ReturnBuffer(data);
                 return 0;
             }
 
             // Just copy the data
-            memcpy(data, audioData, header->dataSize);
+            memcpy(data.Data, audioData, header->dataSize);
         }
         else if (header->audioFormat == WAVE_FORMAT_PCM)
         {
@@ -232,21 +232,19 @@ namespace SaXAudio
             switch (header->bitsPerSample)
             {
             case 8:
-                ConvertPCM8ToFloat(audioData, data, totalSampleCount);
+                ConvertPCM8ToFloat(audioData, data.Data, totalSampleCount);
                 break;
             case 16:
-                ConvertPCM16ToFloat(reinterpret_cast<const INT16*>(audioData),
-                                   data, totalSampleCount);
+                ConvertPCM16ToFloat(reinterpret_cast<const INT16*>(audioData), data.Data, totalSampleCount);
                 break;
             case 24:
-                ConvertPCM24ToFloat(audioData, data, totalSampleCount);
+                ConvertPCM24ToFloat(audioData, data.Data, totalSampleCount);
                 break;
             case 32:
-                ConvertPCM32ToFloat(reinterpret_cast<const INT32*>(audioData),
-                                   data, totalSampleCount);
+                ConvertPCM32ToFloat(reinterpret_cast<const INT32*>(audioData), data.Data, totalSampleCount);
                 break;
             default:
-                delete[] data;
+                SaXAudio::Instance.ReturnBuffer(data);
                 return 0;
             }
         }

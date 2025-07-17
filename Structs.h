@@ -56,13 +56,19 @@ namespace SaXAudio
         UINT32 fadeID = 0;
     };
 
+    struct Buffer
+    {
+        FLOAT* Data = nullptr;
+        UINT32 Size = 0;
+    };
+
     struct BankData
     {
         INT32 bankID = 0;
         BOOL autoRemove = false;
         BOOL disposed = false;
 
-        FLOAT* buffer = nullptr;
+        Buffer buffer = { 0 };
 
         const BYTE* Oggbuffer = nullptr;
         OnDecodedCallback onDecodedCallback = nullptr;

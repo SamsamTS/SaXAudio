@@ -41,6 +41,8 @@ namespace SaXAudio
         INT32 m_bankCounter = 1;
         mutex m_bankMutex;
 
+        list<Buffer> m_bufferPool;
+
         unordered_map<INT32, AudioVoice*> m_voices;
         INT32 m_voiceCounter = 1;
         mutex m_voiceMutex;
@@ -93,7 +95,9 @@ namespace SaXAudio
         void SetBusVolume(const INT32 busID, const FLOAT volume, const FLOAT fade);
         FLOAT GetBusVolume(const INT32 busID);
 
-        UINT32 AddBankData(FLOAT* buffer, UINT32 channels, UINT32 sampleRate, UINT32 totalSamples);
+        Buffer GetBuffer(UINT32 length);
+        void ReturnBuffer(Buffer buffer);
+        UINT32 AddBankData(Buffer buffer, UINT32 channels, UINT32 sampleRate, UINT32 totalSamples);
         BOOL StartDecodeOgg(const INT32 bankID, const BYTE* buffer, const UINT32 length);
 
         AudioVoice* CreateVoice(const INT32 bankID, const INT32 busID = 0);
